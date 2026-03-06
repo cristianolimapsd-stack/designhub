@@ -103,6 +103,11 @@ function Ico({ n, s=16, c="currentColor" }) {
     clock:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
     bar:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
     save:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+    star:<svg width={s} height={s} viewBox="0 0 24 24" fill={c} stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+    user:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    link:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+    instagram:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>,
+    palette:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill={c}/><circle cx="17.5" cy="10.5" r=".5" fill={c}/><circle cx="8.5" cy="7.5" r=".5" fill={c}/><circle cx="6.5" cy="12.5" r=".5" fill={c}/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>,
   };
   return M[n] || null;
 }
@@ -1230,6 +1235,403 @@ const INIT_NOTES = [
   { id:2, title:"Referências UI Kit", content:"Ver Material 3, Apple HIG e Radix UI para o projeto Tech Venture.", date:"2026-03-03" },
 ];
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CLIENTES FIXOS
+// ══════════════════════════════════════════════════════════════════════════════
+function ClientesFixos({ leads, setLeads, portfolio }) {
+  const clientes = leads.filter(l => l.categoria === "cliente_fixo");
+  const [selId, setSelId] = useState(clientes[0]?.id || null);
+  const [modal, setModal] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [tab, setTab] = useState("briefing"); // briefing | projetos | notas
+
+  const E = {
+    name:"", company:"", email:"", value:"", status:"fechado", tag:"",
+    categoria:"cliente_fixo", briefing_padrao:"",
+    cores:"", fontes:"", redes:"", telefone:"", notas_internas:"",
+  };
+  const [form, setForm] = useState(E);
+
+  const sel = clientes.find(c => c.id === selId);
+
+  const openAdd  = () => { setForm(E); setEditId(null); setModal(true); };
+  const openEdit = c  => { setForm({...E,...c, value:String(c.value||"")}); setEditId(c.id); setModal(true); };
+  const save = () => {
+    const cliente = { ...form, value:parseFloat(form.value)||0, date: form.date||new Date().toISOString().split("T")[0] };
+    if (editId) {
+      setLeads(ls => ls.map(l => l.id===editId ? {...cliente, id:editId} : l));
+    } else {
+      const novo = {...cliente, id:Date.now()};
+      setLeads(ls => [...ls, novo]);
+      setSelId(novo.id);
+    }
+    setModal(false);
+  };
+  const del = id => {
+    setLeads(ls => ls.filter(l => l.id !== id));
+    setSelId(clientes.find(c => c.id !== id)?.id || null);
+  };
+  const updateField = (id, field, val) => {
+    setLeads(ls => ls.map(l => l.id===id ? {...l, [field]:val} : l));
+  };
+
+  // projetos do portfólio vinculados ao cliente pelo nome/empresa
+  const projCliente = sel
+    ? portfolio.filter(p =>
+        p.description?.toLowerCase().includes(sel.name.toLowerCase()) ||
+        p.description?.toLowerCase().includes(sel.company?.toLowerCase()) ||
+        p.title?.toLowerCase().includes(sel.company?.toLowerCase())
+      )
+    : [];
+
+  // valor total pago (leads com status fechado)
+  const totalPago = sel ? (parseFloat(sel.value)||0) : 0;
+
+  // parse cores (ex: "#FF0000 Vermelho, #000 Preto")
+  const parseCores = (str) => {
+    if (!str) return [];
+    return str.split(",").map(s => s.trim()).filter(Boolean).map(s => {
+      const hex = s.match(/#[0-9a-fA-F]{3,6}/)?.[0];
+      const nome = s.replace(/#[0-9a-fA-F]{3,6}/, "").trim();
+      return { hex, nome: nome || hex || s };
+    });
+  };
+
+  const NotesSave = ({ clienteId, value }) => {
+    const [txt, setTxt] = useState(value||"");
+    const [saved, setSaved] = useState(false);
+    const ref = useRef(null);
+    useEffect(()=>{ setTxt(value||""); },[clienteId]);
+    const change = v => {
+      setTxt(v); setSaved(false);
+      clearTimeout(ref.current);
+      ref.current = setTimeout(()=>{ updateField(clienteId,"notas_internas",v); setSaved(true); },700);
+    };
+    return (
+      <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+        <textarea value={txt} onChange={e=>change(e.target.value)}
+          placeholder="Anotações internas sobre o cliente, preferências, histórico de conversas..."
+          style={{ flex:1, minHeight:200, background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"13px", color:C.text, fontSize:13, outline:"none", fontFamily:"inherit", resize:"none", lineHeight:1.7 }}
+        />
+        <div style={{ display:"flex", justifyContent:"flex-end", marginTop:5 }}>
+          <span style={{ color:saved?C.green:C.muted, fontSize:11 }}>{saved?"✓ Salvo":"Editando..."}</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding:"28px 32px", height:"calc(100vh - 54px)", display:"flex", flexDirection:"column" }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
+        <div>
+          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>
+            ⭐ Clientes Fixos
+          </h1>
+          <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>
+            {clientes.length} cliente{clientes.length!==1?"s":""} · R$ {clientes.reduce((a,b)=>a+(parseFloat(b.value)||0),0).toLocaleString("pt-BR")} em receita total
+          </p>
+        </div>
+        <Btn onClick={openAdd}><Ico n="plus" s={14} c="#fff"/> Novo Cliente</Btn>
+      </div>
+
+      {clientes.length === 0 ? (
+        <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div style={{ textAlign:"center", maxWidth:380 }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>⭐</div>
+            <div style={{ color:C.text, fontWeight:700, fontSize:18, marginBottom:8 }}>Nenhum cliente fixo ainda</div>
+            <div style={{ color:C.muted, fontSize:14, marginBottom:24, lineHeight:1.6 }}>
+              Adicione clientes fixos aqui ou converta leads na aba CRM clicando no botão ⭐.
+            </div>
+            <Btn onClick={openAdd}><Ico n="plus" s={14} c="#fff"/> Adicionar cliente</Btn>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:20, flex:1, minHeight:0 }}>
+
+          {/* Lista de clientes */}
+          <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", paddingRight:4 }}>
+            {clientes.map(c => {
+              const isSel = c.id === selId;
+              const totalC = parseFloat(c.value)||0;
+              return (
+                <div key={c.id} onClick={()=>{ setSelId(c.id); setTab("briefing"); }}
+                  style={{ background:isSel?`${C.teal}12`:C.card, border:`1px solid ${isSel?C.teal:C.border}`, borderRadius:14, padding:"14px 16px", cursor:"pointer", transition:"all 0.15s", position:"relative" }}>
+                  <div style={{ position:"absolute", top:0, left:0, bottom:0, width:3, background:isSel?C.teal:"transparent", borderRadius:"14px 0 0 14px" }}/>
+                  <div style={{ display:"flex", alignItems:"center", gap:11, marginBottom:10 }}>
+                    <div style={{ width:40, height:40, borderRadius:11, background:`linear-gradient(135deg,${C.teal}40,${C.accentGlow}40)`, display:"flex", alignItems:"center", justifyContent:"center", color:C.teal, fontWeight:800, fontSize:16, flexShrink:0 }}>
+                      {c.name.charAt(0)}
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ color:isSel?C.teal:C.text, fontWeight:700, fontSize:14, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.name}</div>
+                      <div style={{ color:C.muted, fontSize:12, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.company||"—"}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"2px 9px", borderRadius:99, fontWeight:600 }}>{c.tag||"—"}</span>
+                    <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {totalC.toLocaleString("pt-BR")}</span>
+                  </div>
+                  {c.briefing_padrao && (
+                    <div style={{ marginTop:8, fontSize:11, color:C.muted, display:"flex", alignItems:"center", gap:4 }}>
+                      <span>📋</span><span>Briefing salvo</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Perfil do cliente selecionado */}
+          {sel && (
+            <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+              {/* Cabeçalho do perfil */}
+              <div style={{ background:`linear-gradient(135deg,${C.teal}18,${C.accentGlow}12)`, borderBottom:`1px solid ${C.border}`, padding:"20px 24px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                    <div style={{ width:56, height:56, borderRadius:15, background:`linear-gradient(135deg,${C.teal}60,${C.accentGlow}60)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:22, fontFamily:"'Syne',sans-serif", flexShrink:0 }}>
+                      {sel.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{ color:C.text, fontWeight:800, fontSize:20, fontFamily:"'Syne',sans-serif", marginBottom:3 }}>{sel.name}</div>
+                      <div style={{ color:C.muted, fontSize:13, marginBottom:6 }}>{sel.company} {sel.email && `· ${sel.email}`}</div>
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        <span style={{ background:`${C.teal}20`, color:C.teal, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>⭐ Cliente Fixo</span>
+                        {sel.tag && <span style={{ background:`${C.accent}18`, color:C.accent, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:600 }}>{sel.tag}</span>}
+                        {sel.telefone && <span style={{ background:C.surface, color:C.muted, fontSize:11, padding:"3px 10px", borderRadius:99 }}>📱 {sel.telefone}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8 }}>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em" }}>Valor total</div>
+                      <div style={{ color:C.green, fontWeight:800, fontSize:22, fontFamily:"'Syne',sans-serif" }}>R$ {totalPago.toLocaleString("pt-BR")}</div>
+                    </div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      {sel.redes && (
+                        <a href={sel.redes.startsWith("http")?sel.redes:"https://"+sel.redes} target="_blank" rel="noopener noreferrer"
+                          style={{ background:`${C.accent}15`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"6px 12px", color:C.accent, fontSize:12, fontWeight:600, display:"flex", alignItems:"center", gap:5, textDecoration:"none" }}>
+                          <Ico n="instagram" s={13} c={C.accent}/> Redes
+                        </a>
+                      )}
+                      <button onClick={()=>openEdit(sel)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 12px", color:C.muted, cursor:"pointer", fontSize:12, fontWeight:600, display:"flex", alignItems:"center", gap:5 }}>
+                        <Ico n="edit" s={13} c={C.muted}/> Editar
+                      </button>
+                      <button onClick={()=>del(sel.id)} style={{ background:`${C.red}10`, border:`1px solid ${C.red}25`, borderRadius:8, padding:"6px 10px", color:C.red, cursor:"pointer", display:"flex", alignItems:"center" }}>
+                        <Ico n="trash" s={13} c={C.red}/>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div style={{ display:"flex", gap:0, borderBottom:`1px solid ${C.border}`, background:C.surface }}>
+                {[
+                  {id:"briefing", label:"📋 Briefing & Marca"},
+                  {id:"projetos", label:`🗂 Projetos (${projCliente.length})`},
+                  {id:"notas",    label:"📝 Notas Internas"},
+                ].map(t=>(
+                  <button key={t.id} onClick={()=>setTab(t.id)}
+                    style={{ padding:"12px 20px", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?C.teal:"transparent"}`, color:tab===t.id?C.teal:C.muted, cursor:"pointer", fontSize:13, fontWeight:tab===t.id?700:400, transition:"all 0.15s" }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab content */}
+              <div style={{ flex:1, overflowY:"auto", padding:"22px 24px" }}>
+
+                {/* ── BRIEFING ── */}
+                {tab==="briefing" && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+
+                    {/* Cores */}
+                    <div>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                        <label style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>🎨 Paleta de Cores</label>
+                      </div>
+                      {parseCores(sel.cores).length > 0 ? (
+                        <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
+                          {parseCores(sel.cores).map((cor,i)=>(
+                            <div key={i} style={{ display:"flex", alignItems:"center", gap:8, background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px" }}>
+                              {cor.hex && <div style={{ width:22, height:22, borderRadius:6, background:cor.hex, border:`1px solid ${C.border}`, flexShrink:0 }}/>}
+                              <div>
+                                {cor.hex && <div style={{ color:C.muted, fontSize:10, fontFamily:"monospace" }}>{cor.hex}</div>}
+                                <div style={{ color:C.text, fontSize:12, fontWeight:600 }}>{cor.nome}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ color:C.muted, fontSize:13, marginBottom:10 }}>Nenhuma cor cadastrada.</div>
+                      )}
+                      <CoresEditor clienteId={sel.id} value={sel.cores||""} onSave={updateField}/>
+                    </div>
+
+                    {/* Fontes */}
+                    <div>
+                      <label style={{ display:"block", color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, marginBottom:8 }}>🔤 Fontes</label>
+                      {sel.fontes ? (
+                        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+                          {sel.fontes.split(",").map(f=>f.trim()).filter(Boolean).map((f,i)=>(
+                            <div key={i} style={{ color:C.text, fontSize:14, marginBottom:i<sel.fontes.split(",").length-1?6:0, display:"flex", alignItems:"center", gap:8 }}>
+                              <span style={{ color:C.accent }}>Aa</span> {f}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <InlineEdit clienteId={sel.id} field="fontes" value={sel.fontes||""} onSave={updateField} placeholder="Ex: Montserrat Bold (títulos), Lato Regular (corpo)"/>
+                    </div>
+
+                    {/* Briefing geral */}
+                    <div>
+                      <label style={{ display:"block", color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, marginBottom:8 }}>📋 Manual / Briefing Geral</label>
+                      <BriefingInline clienteId={sel.id} value={sel.briefing_padrao||""} onSave={updateField}/>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── PROJETOS ── */}
+                {tab==="projetos" && (
+                  <div>
+                    {projCliente.length === 0 ? (
+                      <div style={{ textAlign:"center", padding:"40px 0", color:C.muted }}>
+                        <div style={{ fontSize:32, marginBottom:10 }}>🗂</div>
+                        <div style={{ fontSize:14 }}>Nenhum projeto do portfólio vinculado a este cliente.</div>
+                        <div style={{ fontSize:12, marginTop:6 }}>Os projetos aparecem aqui quando o nome do cliente ou empresa constar na descrição do projeto no Portfólio.</div>
+                      </div>
+                    ) : (
+                      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                        {projCliente.map(p=>(
+                          <div key={p.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", display:"flex", alignItems:"center", gap:14 }}>
+                            <div style={{ width:44, height:44, borderRadius:11, background:`${C.accentGlow}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{p.cover}</div>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ color:C.text, fontWeight:700, fontSize:14, marginBottom:3 }}>{p.title}</div>
+                              {p.description && <div style={{ color:C.muted, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.description}</div>}
+                              <div style={{ display:"flex", gap:8, marginTop:5 }}>
+                                <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"2px 8px", borderRadius:99, fontWeight:600 }}>{p.tag}</span>
+                                {p.month && <span style={{ color:C.muted, fontSize:11 }}>{p.month}</span>}
+                              </div>
+                            </div>
+                            <div style={{ textAlign:"right", flexShrink:0 }}>
+                              {p.value>0 && <div style={{ color:C.green, fontWeight:700, fontSize:14 }}>R$ {p.value.toLocaleString("pt-BR")}</div>}
+                              <a href={p.url} target="_blank" rel="noopener noreferrer"
+                                style={{ color:C.accent, fontSize:12, display:"flex", alignItems:"center", gap:4, marginTop:4, textDecoration:"none" }}>
+                                <Ico n="externalLink" s={12} c={C.accent}/> Abrir
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── NOTAS ── */}
+                {tab==="notas" && (
+                  <NotesSave clienteId={sel.id} value={sel.notas_internas||""}/>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal de cadastro/edição */}
+      <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Editar Cliente":"Novo Cliente Fixo"} w={560}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
+          <Field label="Nome" value={form.name} onChange={v=>setForm(f=>({...f,name:v}))}/>
+          <Field label="Empresa" value={form.company||""} onChange={v=>setForm(f=>({...f,company:v}))}/>
+          <Field label="Email" value={form.email} onChange={v=>setForm(f=>({...f,email:v}))} type="email"/>
+          <Field label="Telefone / WhatsApp" value={form.telefone||""} onChange={v=>setForm(f=>({...f,telefone:v}))} placeholder="(11) 99999-9999"/>
+          <Field label="Tag / Serviço" value={form.tag} onChange={v=>setForm(f=>({...f,tag:v}))}/>
+          <Field label="Valor total (R$)" value={form.value||""} onChange={v=>setForm(f=>({...f,value:v}))} type="number"/>
+        </div>
+        <Field label="Redes sociais / Site (URL)" value={form.redes||""} onChange={v=>setForm(f=>({...f,redes:v}))} placeholder="https://instagram.com/..."/>
+        <Field label="Fontes (separadas por vírgula)" value={form.fontes||""} onChange={v=>setForm(f=>({...f,fontes:v}))} placeholder="Montserrat Bold, Lato Regular"/>
+        <div style={{ marginBottom:14 }}>
+          <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>🎨 Cores (ex: #FF0000 Vermelho, #000 Preto)</label>
+          <input value={form.cores||""} onChange={e=>setForm(f=>({...f,cores:e.target.value}))} placeholder="#A78BFA Roxo Principal, #2DD4BF Teal Secundária" style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
+        </div>
+        <div style={{ marginBottom:16 }}>
+          <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>📋 Briefing / Manual da Marca</label>
+          <textarea value={form.briefing_padrao||""} onChange={e=>setForm(f=>({...f,briefing_padrao:e.target.value}))}
+            placeholder="Tom de voz, referências visuais, o que evitar, público-alvo..."
+            rows={4} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+        </div>
+        <Btn onClick={save} full>{editId?"Salvar alterações":"Adicionar Cliente"}</Btn>
+      </Modal>
+    </div>
+  );
+}
+
+// Sub-componentes internos do perfil
+function InlineEdit({ clienteId, field, value, onSave, placeholder }) {
+  const [txt, setTxt] = useState(value||"");
+  const [saved, setSaved] = useState(false);
+  const ref = useRef(null);
+  useEffect(()=>{ setTxt(value||""); },[clienteId, value]);
+  const change = v => {
+    setTxt(v); setSaved(false);
+    clearTimeout(ref.current);
+    ref.current = setTimeout(()=>{ onSave(clienteId,field,v); setSaved(true); },700);
+  };
+  return (
+    <div>
+      <input value={txt} onChange={e=>change(e.target.value)} placeholder={placeholder}
+        style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
+      <div style={{ textAlign:"right", marginTop:4 }}>
+        <span style={{ color:saved?C.green:C.muted, fontSize:10 }}>{saved?"✓ Salvo":""}</span>
+      </div>
+    </div>
+  );
+}
+
+function CoresEditor({ clienteId, value, onSave }) {
+  const [txt, setTxt] = useState(value||"");
+  const [saved, setSaved] = useState(false);
+  const ref = useRef(null);
+  useEffect(()=>{ setTxt(value||""); },[clienteId, value]);
+  const change = v => {
+    setTxt(v); setSaved(false);
+    clearTimeout(ref.current);
+    ref.current = setTimeout(()=>{ onSave(clienteId,"cores",v); setSaved(true); },700);
+  };
+  return (
+    <div>
+      <input value={txt} onChange={e=>change(e.target.value)} placeholder="#A78BFA Roxo Principal, #2DD4BF Teal, #000000 Preto"
+        style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
+      <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+        <span style={{ color:C.muted, fontSize:10 }}>Formato: #HEX Nome, separe por vírgula</span>
+        <span style={{ color:saved?C.green:C.muted, fontSize:10 }}>{saved?"✓ Salvo":""}</span>
+      </div>
+    </div>
+  );
+}
+
+function BriefingInline({ clienteId, value, onSave }) {
+  const [txt, setTxt] = useState(value||"");
+  const [saved, setSaved] = useState(false);
+  const ref = useRef(null);
+  useEffect(()=>{ setTxt(value||""); },[clienteId, value]);
+  const change = v => {
+    setTxt(v); setSaved(false);
+    clearTimeout(ref.current);
+    ref.current = setTimeout(()=>{ onSave(clienteId,"briefing_padrao",v); setSaved(true); },700);
+  };
+  return (
+    <div>
+      <textarea value={txt} onChange={e=>change(e.target.value)} rows={5}
+        placeholder="Ex: Marca jovem e descontraída. Sempre usar fundo escuro. Público 18-30 anos. Evitar fontes serifadas. Referências: Nubank, Spotify..."
+        style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.7 }}/>
+      <div style={{ display:"flex", justifyContent:"flex-end", marginTop:4 }}>
+        <span style={{ color:saved?C.green:C.muted, fontSize:10 }}>{saved?"✓ Salvo":""}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState("dashboard");
 
@@ -1358,13 +1760,14 @@ export default function App() {
   };
 
   const nav = [
-    { id:"dashboard", label:"Dashboard",        icon:"dashboard", sec:"principal" },
-    { id:"leads",     label:"CRM · Leads",       icon:"leads",     sec:"gestao"    },
-    { id:"agenda",    label:"Agenda",            icon:"agenda",    sec:"gestao"    },
-    { id:"finance",   label:"Financeiro",        icon:"finance",   sec:"gestao"    },
-    { id:"timer",     label:"Horas Trabalhadas", icon:"clock",     sec:"gestao"    },
-    { id:"portfolio", label:"Portfólio",         icon:"portfolio", sec:"criativo"  },
-    { id:"notes",     label:"Notas",             icon:"note",      sec:"criativo"  },
+    { id:"dashboard",       label:"Dashboard",        icon:"dashboard", sec:"principal" },
+    { id:"leads",           label:"CRM · Leads",       icon:"leads",     sec:"gestao"    },
+    { id:"clientes_fixos",  label:"Clientes Fixos",    icon:"star",      sec:"gestao"    },
+    { id:"agenda",          label:"Agenda",            icon:"agenda",    sec:"gestao"    },
+    { id:"finance",         label:"Financeiro",        icon:"finance",   sec:"gestao"    },
+    { id:"timer",           label:"Horas Trabalhadas", icon:"clock",     sec:"gestao"    },
+    { id:"portfolio",       label:"Portfólio",         icon:"portfolio", sec:"criativo"  },
+    { id:"notes",           label:"Notas",             icon:"note",      sec:"criativo"  },
   ];
   const secs = [{ id:"principal", label:"Principal" },{ id:"gestao", label:"Gestão" },{ id:"criativo", label:"Criativo" }];
 
@@ -1432,13 +1835,14 @@ export default function App() {
               <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13 }}>D</div>
             </div>
           </div>
-          {view==="dashboard" && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView}/>}
-          {view==="leads"     && <Leads leads={leads} setLeads={setLeads}/>}
-          {view==="agenda"    && <Agenda tasks={tasks} setTasks={setTasks}/>}
-          {view==="finance"   && <Finance leads={leads}/>}
-          {view==="timer"     && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
-          {view==="portfolio" && <Portfolio items={portfolio} setItems={setPortfolio}/>}
-          {view==="notes"     && <Notes notes={notes} setNotes={setNotes}/>}
+          {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView}/>}
+          {view==="leads"          && <Leads leads={leads} setLeads={setLeads}/>}
+          {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio}/>}
+          {view==="agenda"         && <Agenda tasks={tasks} setTasks={setTasks}/>}
+          {view==="finance"        && <Finance leads={leads}/>}
+          {view==="timer"          && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
+          {view==="portfolio"      && <Portfolio items={portfolio} setItems={setPortfolio}/>}
+          {view==="notes"          && <Notes notes={notes} setNotes={setNotes}/>}
         </div>
       </div>
     </>
