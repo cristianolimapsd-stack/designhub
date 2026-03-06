@@ -2443,8 +2443,8 @@ export default function App() {
                   return (
                   <button key={item.id} onClick={()=>setView(item.id)} title={col?item.label:""} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:col?"10px":"9px 11px", borderRadius:9, background:view===item.id?`${C.accent}16`:"transparent", border:view===item.id?`1px solid ${C.accent}28`:"1px solid transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontWeight:view===item.id?600:400, transition:"all 0.13s", justifyContent:col?"center":"flex-start", marginBottom:1, position:"relative" }}>
                     <Ico n={item.icon} s={15} c={view===item.id?C.accent:C.muted}/>
-                    {!col&&<span style={{ flex:1 }}>{item.label}</span>}
-                    {atrasados>0&&<span style={{ background:C.red, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:99, minWidth:18, textAlign:"center" }}>{atrasados}</span>}
+                    {!col&&<span style={{ flex:1, textAlign:"left" }}>{item.label}</span>}
+                    {!col&&atrasados>0&&<span style={{ background:C.red, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:99, minWidth:18, textAlign:"center" }}>{atrasados}</span>}
                   </button>
                   );
                 })}
