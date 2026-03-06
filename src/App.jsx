@@ -2077,10 +2077,11 @@ function BriefingInline({ clienteId, value, onSave }) {
 // FORMULÁRIO PÚBLICO DE PEDIDOS
 // ══════════════════════════════════════════════════════════════════════════════
 function FormularioPedido({ setDemandas, setTasks }) {
-  // Detecta cliente pelo hash: #pedido/slug/id
+  // Detecta cliente pelo hash: #pedido/slug/id OU #pedido/id
   const hash = window.location.hash;
-  const match = hash.match(/#pedido\/[^/]+\/(\d+)/);
-  const clienteId = match ? parseInt(match[1]) : null;
+  const matchLong = hash.match(/#pedido\/[^/]+\/(\d+)/);
+  const matchShort = hash.match(/#pedido\/(\d+)$/);
+  const clienteId = matchLong ? parseInt(matchLong[1]) : matchShort ? parseInt(matchShort[1]) : null;
 
   const [cliente, setCliente] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2635,7 +2636,7 @@ function PortalCliente() {
     });
   };
 
-  const linkPedido = clienteId ? `${window.location.origin}/#pedido/${clienteId}` : "";
+  const linkPedido = clienteId ? `${window.location.origin}/#pedido/cliente/${clienteId}` : "";
 
   if (loading) return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -2980,8 +2981,15 @@ export default function App() {
 
   const timer = useTimer(saveTimerDay);
 
-  // ── Early returns para rotas públicas (após todos os hooks) ──────────────
+  // ── Early returns para rotas públicas (sem login) ─────────────────────────
   if (isPortal) return <PortalCliente />;
+  if (isPedido) return (
+    <>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;}input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5);}`}</style>
+      <FormularioPedido setDemandas={setDemandas} setTasks={setTasks}/>
+    </>
+  );
+  // ── Login gate — somente para o designer ───────────────────────────────────
   if (!loggedIn) return <LoginScreen onLogin={() => setLoggedIn(true)} />;
 
   // ── Indicador de status de sync no topbar ──────────────────────────────────
