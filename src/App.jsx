@@ -245,7 +245,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
   const maxSecs = Math.max(...last7.map(d=>d.secs), 1);
 
   return (
-    <div style={{ padding:"28px 32px", maxWidth:1100 }}>
+    <div className="main-padding" style={{ padding:"28px 32px", maxWidth:1100 }}>
       <div style={{ marginBottom:26 }}>
         <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, margin:0, letterSpacing:"-0.02em" }}>{(()=>{const h=new Date().getHours();return h<12?"Bom dia! ☀️":h<18?"Boa tarde! 🌤":"Boa noite! 🌙";})()}</h1>
         <p style={{ color:C.muted, margin:"5px 0 0", fontSize:13 }}>{new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
@@ -272,7 +272,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
       </div>
 
       {/* Metrics */}
-      <div style={{ display:"flex", gap:14, marginBottom:22, flexWrap:"wrap" }}>
+      <div className="dashboard-metrics" style={{ display:"flex", gap:14, marginBottom:22, flexWrap:"wrap" }}>
         {[
           { label:"Receita fechada", value:`R$ ${totalV.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>l.status==="fechado").length} projetos`, accent:C.green, onClick:null },
           { label:"Em pipeline",     value:`R$ ${pipeline.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>!["fechado","perdido"].includes(l.status)).length} ativos`, accent:C.accent, onClick:null },
@@ -339,7 +339,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
         );
       })()}
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
+      <div className="grid-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
         {/* Timer 7 days */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
@@ -898,8 +898,8 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
   });
 
   return (
-    <div style={{ padding:"28px 32px" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
+    <div className="main-padding" style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22, flexWrap:"wrap", gap:10 }}>
         <div>
           <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>Agenda</h1>
           <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>{tasks.filter(t=>!t.done).length} tarefas pendentes</p>
@@ -2496,7 +2496,7 @@ function Kanban({ demandas, setDemandas, leads, setTasks }) {
       </div>
 
       {/* Colunas */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, flex:1, minHeight:0, overflowX:"auto" }}>
+      <div className="kanban-cols" style={{ display:"grid", gridTemplateColumns:"repeat(6,minmax(210px,1fr))", gap:12, flex:1, minHeight:0, overflowX:"auto" }}>
         {KANBAN_COLS.map(col => {
           const cfg = STATUS_DEMANDA[col];
           const cards = demandasFiltradas.filter(d => d.status === col);
@@ -2715,16 +2715,37 @@ function Kanban({ demandas, setDemandas, leads, setTasks }) {
 const DEFAULT_PASS = "fluxio2024";
 function hashPass(p) { let h=0; for(let i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h|=0;} return String(h); }
 
+async function getStoredHash() {
+  // Tenta buscar no Supabase primeiro, fallback para localStorage
+  try {
+    if (dbReady) {
+      const { data } = await supabase.from("config").select("value").eq("key","pass_hash").single();
+      if (data?.value) { localStorage.setItem("dh_pass_hash", data.value); return data.value; }
+    }
+  } catch {}
+  return localStorage.getItem("dh_pass_hash") || hashPass(DEFAULT_PASS);
+}
+
+async function saveHash(hash) {
+  localStorage.setItem("dh_pass_hash", hash);
+  try {
+    if (dbReady) await supabase.from("config").upsert([{key:"pass_hash",value:hash}]);
+  } catch {}
+}
+
 function LoginScreen({ onLogin }) {
   const [pass, setPass] = useState("");
   const [err, setErr] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [firstTime] = useState(() => !localStorage.getItem("dh_pass_hash"));
 
-  const tryLogin = () => {
-    const stored = localStorage.getItem("dh_pass_hash") || hashPass(DEFAULT_PASS);
+  const tryLogin = async () => {
+    setChecking(true);
+    const stored = await getStoredHash();
+    setChecking(false);
     if (hashPass(pass) === stored) {
-      localStorage.setItem("dh_pass_hash", stored);
+      await saveHash(stored);
       localStorage.setItem("dh_session", "1");
       onLogin();
     } else {
@@ -2765,8 +2786,8 @@ function LoginScreen({ onLogin }) {
             </button>
           </div>
           {err && <div style={{ color:C.red, fontSize:12, marginBottom:14, textAlign:"center" }}>Senha incorreta. Tente novamente.</div>}
-          <button onClick={tryLogin} style={{ width:"100%", background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:11, padding:"13px", color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"'Syne',sans-serif", boxShadow:`0 4px 20px ${C.accentGlow}40` }}>
-            Entrar →
+          <button onClick={tryLogin} disabled={checking} style={{ width:"100%", background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:11, padding:"13px", color:"#fff", fontSize:15, fontWeight:800, cursor:checking?"wait":"pointer", fontFamily:"'Syne',sans-serif", boxShadow:`0 4px 20px ${C.accentGlow}40`, opacity:checking?0.7:1 }}>
+            {checking?"Verificando...":"Entrar →"}
           </button>
         </div>
         <p style={{ textAlign:"center", color:C.muted, fontSize:11, marginTop:18 }}>FluxioHUB · área do designer</p>
@@ -2785,13 +2806,13 @@ function SettingsModal({ open, onClose, onLogout, theme, onTheme, onStudio }) {
   const [msg, setMsg] = useState(null);
   const [studioName, setStudioName] = useState(()=>localStorage.getItem("dh_studio")||"");
 
-  const changePass = () => {
-    const stored = localStorage.getItem("dh_pass_hash") || hashPass(DEFAULT_PASS);
+  const changePass = async () => {
+    const stored = await getStoredHash();
     if (hashPass(oldPass) !== stored) { setMsg({type:"err", text:"Senha atual incorreta."}); return; }
     if (newPass.length < 4) { setMsg({type:"err", text:"Nova senha deve ter ao menos 4 caracteres."}); return; }
     if (newPass !== confirm) { setMsg({type:"err", text:"As senhas não conferem."}); return; }
-    localStorage.setItem("dh_pass_hash", hashPass(newPass));
-    setMsg({type:"ok", text:"Senha alterada com sucesso!"});
+    await saveHash(hashPass(newPass));
+    setMsg({type:"ok", text:"Senha salva na nuvem! ☁️"});
     setOldPass(""); setNewPass(""); setConfirm("");
     setTimeout(() => setMsg(null), 3000);
   };
@@ -3158,6 +3179,8 @@ export default function App() {
   // Estado de sincronização
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | loading | ok | error
   const loaded = useRef(false);
+  const [newOrderAlert, setNewOrderAlert] = useState(null); // { titulo, cliente }
+  const knownDemandaIds = useRef(null);
 
   // ── Carrega dados do Supabase na abertura do app ───────────────────────────
   useEffect(() => {
@@ -3187,6 +3210,33 @@ export default function App() {
       }
     }
     loadFromCloud();
+  }, []);
+
+  // ── Polling para detectar novos pedidos (a cada 20s) ────────────────────────
+  useEffect(() => {
+    if (!dbReady) return;
+    const check = async () => {
+      if (!loaded.current) return;
+      try {
+        const { data } = await supabase.from("demandas").select("id,titulo,cliente_id,status,data_criacao");
+        if (!data) return;
+        const ids = new Set(data.map(d=>String(d.id)));
+        if (knownDemandaIds.current === null) { knownDemandaIds.current = ids; return; }
+        const novos = data.filter(d => !knownDemandaIds.current.has(String(d.id)));
+        if (novos.length > 0) {
+          setDemandasLocal(prev => {
+            const existingIds = new Set(prev.map(x=>String(x.id)));
+            const toAdd = novos.filter(d=>!existingIds.has(String(d.id)));
+            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+          });
+          setNewOrderAlert({ titulo: novos[0].titulo, count: novos.length });
+          setTimeout(() => setNewOrderAlert(null), 6000);
+          knownDemandaIds.current = ids;
+        }
+      } catch {}
+    };
+    const interval = setInterval(check, 20000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── Sincroniza tabelas com ID numérico ─────────────────────────────────────
@@ -3322,6 +3372,7 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
+        html,body{height:100%;overflow:hidden;}
         body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;transition:background 0.3s,color 0.3s;}
         ::-webkit-scrollbar{width:4px;height:4px;}
         ::-webkit-scrollbar-track{background:${C.surface};}
@@ -3330,10 +3381,30 @@ export default function App() {
         input[type=date]::-webkit-calendar-picker-indicator,
         input[type=month]::-webkit-calendar-picker-indicator{filter:invert(0.5);}
         @media print { .no-print{display:none!important;} body{background:#fff!important;color:#000!important;} }
+        /* Mobile */
+        @media(max-width:768px){
+          .sidebar-desktop{display:none!important;}
+          .mobile-nav{display:flex!important;}
+          .topbar-search{display:none!important;}
+          .topbar-csv{display:none!important;}
+          .main-padding{padding:16px!important;}
+          .grid-2col{grid-template-columns:1fr!important;}
+          .dashboard-metrics{flex-direction:column!important;}
+          .kanban-cols{grid-template-columns:repeat(2,minmax(200px,1fr))!important;}
+        }
+        @media(min-width:769px){
+          .mobile-nav{display:none!important;}
+        }
+        .mobile-nav{
+          position:fixed;bottom:0;left:0;right:0;
+          background:${C.surface};border-top:1px solid ${C.border};
+          display:none;align-items:center;justify-content:space-around;
+          padding:8px 4px 12px;z-index:100;
+        }
       `}</style>
       <div style={{ display:"flex", height:"100vh", overflow:"hidden" }}>
-        {/* Sidebar */}
-        <div style={{ width:col?62:218, background:C.surface, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", transition:"width 0.22s ease", flexShrink:0 }}>
+        {/* Sidebar — desktop only */}
+        <div className="sidebar-desktop" style={{ width:col?62:218, background:C.surface, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", transition:"width 0.22s ease", flexShrink:0 }}>
           <div style={{ padding:"17px 13px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:col?"center":"space-between" }}>
             {!col&&(
               <div style={{ display:"flex", alignItems:"center", gap:9 }}>
@@ -3384,12 +3455,12 @@ export default function App() {
         </div>
 
         {/* Main */}
-        <div style={{ flex:1, overflow:"auto" }}>
-          <div style={{ padding:"0 24px", height:54, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", background:C.surface, position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ flex:1, overflow:"auto", paddingBottom:"env(safe-area-inset-bottom)" }}>
+          <div style={{ padding:"0 16px", height:54, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", background:C.surface, position:"sticky", top:0, zIndex:10 }}>
             <span style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:14 }}>{nav.find(n=>n.id===view)?.label||view}</span>
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <SyncDot/>
-              <div style={{ position:"relative" }}>
+              <div className="topbar-search" style={{ position:"relative" }}>
                 <div style={{ background:C.card, border:`1px solid ${searchQ?C.accent:C.border}`, borderRadius:18, padding:"6px 13px", display:"flex", alignItems:"center", gap:7, transition:"border-color 0.2s" }}>
                   <Ico n="search" s={13} c={searchQ?C.accent:C.muted}/>
                   <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} onFocus={()=>setSearchOpen(true)}
@@ -3430,7 +3501,7 @@ export default function App() {
                   );
                 })()}
               </div>
-              <button title="Exportar dados (CSV)" onClick={()=>{
+              <button className="topbar-csv" title="Exportar dados (CSV)" onClick={()=>{
                 const esc = v => `"${String(v??'').replace(/"/g,'""')}"`;
                 const toCSV = (rows, cols) => [cols.join(","), ...rows.map(r=>cols.map(c=>esc(r[c])).join(","))].join("\n");
                 const dl = (csv, name) => { const a=document.createElement("a"); a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv); a.download=name; a.click(); };
@@ -3441,6 +3512,20 @@ export default function App() {
               <div onClick={()=>setShowSettings(true)} title="Configurações" style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, cursor:"pointer" }}>{studioLabel.charAt(0)}</div>
             </div>
           </div>
+          {/* Banner notificação pedido novo */}
+          {newOrderAlert && (
+            <div style={{ position:"fixed", bottom:24, right:24, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:14, padding:"14px 20px", boxShadow:`0 8px 30px ${C.accentGlow}60`, zIndex:500, display:"flex", alignItems:"center", gap:12, maxWidth:340, animation:"slideIn 0.3s ease" }}>
+              <style>{`@keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+              <span style={{ fontSize:22 }}>🔔</span>
+              <div style={{ flex:1 }}>
+                <div style={{ color:"#fff", fontWeight:800, fontSize:14, fontFamily:"'Syne',sans-serif" }}>Novo pedido recebido!</div>
+                <div style={{ color:"rgba(255,255,255,0.85)", fontSize:12, marginTop:2 }}>{newOrderAlert.count>1?`${newOrderAlert.count} pedidos novos`:newOrderAlert.titulo}</div>
+              </div>
+              <button onClick={()=>{setNewOrderAlert(null);handleSetView("kanban");}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, padding:"5px 10px", color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700 }}>Ver →</button>
+              <button onClick={()=>setNewOrderAlert(null)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.7)", cursor:"pointer", fontSize:16, padding:0 }}>×</button>
+            </div>
+          )}
+          <div style={{ paddingBottom:64 }}>
           {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas}/>}
           {view==="kanban"         && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads} setTasks={setTasks}/>}
           {view==="leads"          && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
@@ -3452,9 +3537,32 @@ export default function App() {
           {view==="portfolio"      && <Portfolio items={portfolio} setItems={setPortfolio}/>}
           {view==="notes"          && <Notes notes={notes} setNotes={setNotes}/>}
           {view==="relatorio"      && <Relatorio leads={leads} demandas={demandas} tasks={tasks} timerHistory={timerHistory} portfolio={portfolio}/>}
+          </div>
         </div>
       </div>
       <SettingsModal open={showSettings} onClose={()=>setShowSettings(false)} onLogout={()=>{setLoggedIn(false);setShowSettings(false);}} theme={theme} onTheme={applyTheme} onStudio={(n)=>setStudioLabel(n||"FluxioHUB")}/>
+
+      {/* Mobile bottom navigation */}
+      <nav className="mobile-nav">
+        {[
+          {id:"dashboard",icon:"dashboard",label:"Home"},
+          {id:"kanban",icon:"kanban",label:"Kanban"},
+          {id:"agenda",icon:"agenda",label:"Agenda"},
+          {id:"clientes_fixos",icon:"star",label:"Clientes"},
+          {id:"leads",icon:"leads",label:"CRM"},
+        ].map(item=>(
+          <button key={item.id} onClick={()=>handleSetView(item.id)}
+            style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, background:"none", border:"none", cursor:"pointer", padding:"4px 8px", borderRadius:10, color:view===item.id?C.accent:C.muted, transition:"color 0.15s" }}>
+            <Ico n={item.icon} s={22} c={view===item.id?C.accent:C.muted}/>
+            <span style={{ fontSize:9, fontWeight:view===item.id?700:400 }}>{item.label}</span>
+          </button>
+        ))}
+        <button onClick={()=>setShowSettings(true)}
+          style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, background:"none", border:"none", cursor:"pointer", padding:"4px 8px", borderRadius:10, color:C.muted }}>
+          <span style={{ fontSize:22 }}>⚙️</span>
+          <span style={{ fontSize:9 }}>Config</span>
+        </button>
+      </nav>
     </>
   );
 }
