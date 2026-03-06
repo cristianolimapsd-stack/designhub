@@ -38,6 +38,13 @@ const CATEGORIA = {
   cliente_fixo: { label:"Cliente Ativo",  color:C.teal,   icon:"⭐" },
 };
 
+const STATUS_DEMANDA = {
+  triagem:     { label:"Triagem",      color:"#94a3b8", icon:"📥" },
+  em_criacao:  { label:"Em Criação",   color:"#a78bfa", icon:"✏️"  },
+  aprovacao:   { label:"Aprovação",    color:"#fb923c", icon:"👀" },
+  finalizado:  { label:"Finalizado",   color:"#4ade80", icon:"✅" },
+};
+
 const initLeads = [
   { id:1, name:"Mateus Costa",   company:"Pixel Studio",  email:"mateus@pixel.io",  value:4500,  status:"novo",       date:"2026-03-01", tag:"Design",   categoria:"lead",         briefing_padrao:"" },
   { id:2, name:"Fernanda Lima",  company:"Brand Co",      email:"fer@brandco.com",  value:12000, status:"negociando", date:"2026-02-28", tag:"Branding", categoria:"lead",         briefing_padrao:"" },
@@ -64,6 +71,7 @@ const initPortfolio = [
 ];
 
 const initTimerHistory = [];
+const initDemandas = [];
 
 const STATUS = {
   novo:       { label:"Novo",       color:C.teal   },
@@ -1239,12 +1247,20 @@ const INIT_NOTES = [
 // ══════════════════════════════════════════════════════════════════════════════
 // CLIENTES FIXOS
 // ══════════════════════════════════════════════════════════════════════════════
-function ClientesFixos({ leads, setLeads, portfolio }) {
+// ══════════════════════════════════════════════════════════════════════════════
+// CLIENTES ATIVOS
+// ══════════════════════════════════════════════════════════════════════════════
+function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, tasks, setTasks }) {
   const clientes = leads.filter(l => l.categoria === "cliente_fixo");
   const [selId, setSelId] = useState(clientes[0]?.id || null);
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [tab, setTab] = useState("briefing"); // briefing | projetos | notas
+  const [tab, setTab] = useState("briefing");
+  const [showAddProj, setShowAddProj] = useState(false);
+  const [modalDemanda, setModalDemanda] = useState(false);
+  const [editDemandaId, setEditDemandaId] = useState(null);
+  const ED = { titulo:"", descricao:"", prazo:"", valor:"", status:"triagem", cliente_id:null };
+  const [formD, setFormD] = useState(ED);
 
   const E = {
     name:"", company:"", email:"", value:"", status:"fechado", tag:"",
@@ -1254,7 +1270,6 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
   const [form, setForm] = useState(E);
 
   const sel = clientes.find(c => c.id === selId);
-  const [showAddProj, setShowAddProj] = useState(false);
 
   const openAdd  = () => { setForm(E); setEditId(null); setModal(true); };
   const openEdit = c  => { setForm({...E,...c, value:String(c.value||"")}); setEditId(c.id); setModal(true); };
@@ -1277,7 +1292,47 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
     setLeads(ls => ls.map(l => l.id===id ? {...l, [field]:val} : l));
   };
 
-  // projetos vinculados: manual (projeto_ids) + auto-detecção por nome/empresa
+  // Demandas deste cliente
+  const demandasCliente = sel ? demandas.filter(d => d.cliente_id === sel.id) : [];
+
+  const openAddDemanda = () => {
+    setFormD({...ED, cliente_id: sel?.id});
+    setEditDemandaId(null);
+    setModalDemanda(true);
+  };
+  const openEditDemanda = d => {
+    setFormD({...d, valor:String(d.valor||"")});
+    setEditDemandaId(d.id);
+    setModalDemanda(true);
+  };
+  const saveDemanda = () => {
+    if (!formD.titulo) return;
+    const demanda = { ...formD, valor:parseFloat(formD.valor)||0, data_criacao: new Date().toISOString().split("T")[0] };
+    if (editDemandaId) {
+      setDemandas(ds => ds.map(d => d.id===editDemandaId ? {...demanda, id:editDemandaId} : d));
+    } else {
+      const nova = {...demanda, id:Date.now()};
+      setDemandas(ds => [...ds, nova]);
+      // Criar tarefa na agenda automaticamente se tiver prazo
+      if (nova.prazo) {
+        const tarefa = {
+          id: Date.now()+1,
+          title: `📋 ${nova.titulo}${sel ? ` · ${sel.name}` : ""}`,
+          time: "09:00",
+          date: nova.prazo,
+          done: false,
+          priority: "alta",
+          type: "entrega",
+        };
+        setTasks(ts => [...ts, tarefa]);
+      }
+    }
+    setModalDemanda(false);
+  };
+  const delDemanda = id => setDemandas(ds => ds.filter(d => d.id !== id));
+  const moveDemanda = (id, status) => setDemandas(ds => ds.map(d => d.id===id ? {...d,status} : d));
+
+  // Projetos vinculados
   const projIds = sel?.projeto_ids || [];
   const projCliente = sel
     ? portfolio.filter(p => {
@@ -1289,7 +1344,6 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
         return manualMatch || autoMatch;
       })
     : [];
-  // projetos disponíveis para vincular (os que ainda não estão vinculados)
   const projDisponiveis = portfolio.filter(p => !projCliente.find(pc => pc.id === p.id));
   const vincularProjeto = (projId) => {
     const novaLista = [...new Set([...projIds, projId])];
@@ -1299,10 +1353,8 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
     updateField(sel.id, "projeto_ids", projIds.filter(id => id !== projId));
   };
 
-  // valor total pago (leads com status fechado)
   const totalPago = sel ? (parseFloat(sel.value)||0) : 0;
 
-  // parse cores (ex: "#FF0000 Vermelho, #000 Preto")
   const parseCores = (str) => {
     if (!str) return [];
     return str.split(",").map(s => s.trim()).filter(Boolean).map(s => {
@@ -1311,6 +1363,10 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
       return { hex, nome: nome || hex || s };
     });
   };
+
+  // Link público do formulário de pedidos
+  const slug = sel ? sel.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"") : "";
+  const linkPedido = sel ? `${window.location.origin}/#pedido/${slug}/${sel.id}` : "";
 
   const NotesSave = ({ clienteId, value }) => {
     const [txt, setTxt] = useState(value||"");
@@ -1337,12 +1393,9 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
 
   return (
     <div style={{ padding:"28px 32px", height:"calc(100vh - 54px)", display:"flex", flexDirection:"column" }}>
-      {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
         <div>
-          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>
-            ⭐ Clientes Ativos
-          </h1>
+          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>⭐ Clientes Ativos</h1>
           <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>
             {clientes.length} cliente{clientes.length!==1?"s":""} · R$ {clientes.reduce((a,b)=>a+(parseFloat(b.value)||0),0).toLocaleString("pt-BR")} em receita total
           </p>
@@ -1356,7 +1409,7 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
             <div style={{ fontSize:48, marginBottom:16 }}>⭐</div>
             <div style={{ color:C.text, fontWeight:700, fontSize:18, marginBottom:8 }}>Nenhum cliente ativo ainda</div>
             <div style={{ color:C.muted, fontSize:14, marginBottom:24, lineHeight:1.6 }}>
-              Adicione clientes ativos aqui ou converta leads na aba CRM clicando no botão ⭐.
+              Adicione clientes ou converta leads na aba CRM clicando em ⭐.
             </div>
             <Btn onClick={openAdd}><Ico n="plus" s={14} c="#fff"/> Adicionar cliente</Btn>
           </div>
@@ -1364,11 +1417,11 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:20, flex:1, minHeight:0 }}>
 
-          {/* Lista de clientes */}
+          {/* Lista */}
           <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", paddingRight:4 }}>
             {clientes.map(c => {
               const isSel = c.id === selId;
-              const totalC = parseFloat(c.value)||0;
+              const nDemandas = demandas.filter(d=>d.cliente_id===c.id).length;
               return (
                 <div key={c.id} onClick={()=>{ setSelId(c.id); setTab("briefing"); }}
                   style={{ background:isSel?`${C.teal}12`:C.card, border:`1px solid ${isSel?C.teal:C.border}`, borderRadius:14, padding:"14px 16px", cursor:"pointer", transition:"all 0.15s", position:"relative" }}>
@@ -1383,23 +1436,21 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                     </div>
                   </div>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                    <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"2px 9px", borderRadius:99, fontWeight:600 }}>{c.tag||"—"}</span>
-                    <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {totalC.toLocaleString("pt-BR")}</span>
-                  </div>
-                  {c.briefing_padrao && (
-                    <div style={{ marginTop:8, fontSize:11, color:C.muted, display:"flex", alignItems:"center", gap:4 }}>
-                      <span>📋</span><span>Briefing salvo</span>
+                    <div style={{ display:"flex", gap:5 }}>
+                      <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"2px 9px", borderRadius:99, fontWeight:600 }}>{c.tag||"—"}</span>
+                      {nDemandas>0 && <span style={{ background:`${C.accent}15`, color:C.accent, fontSize:11, padding:"2px 9px", borderRadius:99, fontWeight:600 }}>{nDemandas} 📋</span>}
                     </div>
-                  )}
+                    <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {(parseFloat(c.value)||0).toLocaleString("pt-BR")}</span>
+                  </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Perfil do cliente selecionado */}
+          {/* Perfil */}
           {sel && (
             <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-              {/* Cabeçalho do perfil */}
+              {/* Header */}
               <div style={{ background:`linear-gradient(135deg,${C.teal}18,${C.accentGlow}12)`, borderBottom:`1px solid ${C.border}`, padding:"20px 24px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -1408,7 +1459,7 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                     </div>
                     <div>
                       <div style={{ color:C.text, fontWeight:800, fontSize:20, fontFamily:"'Syne',sans-serif", marginBottom:3 }}>{sel.name}</div>
-                      <div style={{ color:C.muted, fontSize:13, marginBottom:6 }}>{sel.company} {sel.email && `· ${sel.email}`}</div>
+                      <div style={{ color:C.muted, fontSize:13, marginBottom:6 }}>{sel.company}{sel.email && ` · ${sel.email}`}</div>
                       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                         <span style={{ background:`${C.teal}20`, color:C.teal, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>⭐ Cliente Ativo</span>
                         {sel.tag && <span style={{ background:`${C.accent}18`, color:C.accent, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:600 }}>{sel.tag}</span>}
@@ -1442,12 +1493,13 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
               {/* Tabs */}
               <div style={{ display:"flex", gap:0, borderBottom:`1px solid ${C.border}`, background:C.surface }}>
                 {[
-                  {id:"briefing", label:"📋 Briefing & Marca"},
-                  {id:"projetos", label:`🗂 Projetos (${projCliente.length})`},
-                  {id:"notas",    label:"📝 Notas Internas"},
+                  {id:"briefing",  label:"📋 Briefing & Marca"},
+                  {id:"demandas",  label:`📥 Demandas (${demandasCliente.length})`},
+                  {id:"projetos",  label:`🗂 Portfólio (${projCliente.length})`},
+                  {id:"notas",     label:"📝 Notas"},
                 ].map(t=>(
                   <button key={t.id} onClick={()=>setTab(t.id)}
-                    style={{ padding:"12px 20px", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?C.teal:"transparent"}`, color:tab===t.id?C.teal:C.muted, cursor:"pointer", fontSize:13, fontWeight:tab===t.id?700:400, transition:"all 0.15s" }}>
+                    style={{ padding:"12px 18px", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?C.teal:"transparent"}`, color:tab===t.id?C.teal:C.muted, cursor:"pointer", fontSize:13, fontWeight:tab===t.id?700:400, transition:"all 0.15s" }}>
                     {t.label}
                   </button>
                 ))}
@@ -1459,10 +1511,8 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                 {/* ── BRIEFING ── */}
                 {tab==="briefing" && (
                   <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-
-                    {/* Cores */}
                     <div>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                      <div style={{ marginBottom:10 }}>
                         <label style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>🎨 Paleta de Cores</label>
                       </div>
                       {parseCores(sel.cores).length > 0 ? (
@@ -1477,19 +1527,15 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        <div style={{ color:C.muted, fontSize:13, marginBottom:10 }}>Nenhuma cor cadastrada.</div>
-                      )}
+                      ) : <div style={{ color:C.muted, fontSize:13, marginBottom:10 }}>Nenhuma cor cadastrada.</div>}
                       <CoresEditor clienteId={sel.id} value={sel.cores||""} onSave={updateField}/>
                     </div>
-
-                    {/* Fontes */}
                     <div>
                       <label style={{ display:"block", color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, marginBottom:8 }}>🔤 Fontes</label>
                       {sel.fontes ? (
                         <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
                           {sel.fontes.split(",").map(f=>f.trim()).filter(Boolean).map((f,i)=>(
-                            <div key={i} style={{ color:C.text, fontSize:14, marginBottom:i<sel.fontes.split(",").length-1?6:0, display:"flex", alignItems:"center", gap:8 }}>
+                            <div key={i} style={{ color:C.text, fontSize:14, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}>
                               <span style={{ color:C.accent }}>Aa</span> {f}
                             </div>
                           ))}
@@ -1497,19 +1543,89 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                       ) : null}
                       <InlineEdit clienteId={sel.id} field="fontes" value={sel.fontes||""} onSave={updateField} placeholder="Ex: Montserrat Bold (títulos), Lato Regular (corpo)"/>
                     </div>
-
-                    {/* Briefing geral */}
                     <div>
                       <label style={{ display:"block", color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, marginBottom:8 }}>📋 Manual / Briefing Geral</label>
                       <BriefingInline clienteId={sel.id} value={sel.briefing_padrao||""} onSave={updateField}/>
                     </div>
+                    {/* Link do formulário de pedidos */}
+                    <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}25`, borderRadius:12, padding:"14px 16px" }}>
+                      <div style={{ color:C.accent, fontSize:12, fontWeight:700, marginBottom:8 }}>🔗 Link de Pedidos do Cliente</div>
+                      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                        <div style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:11, color:C.muted, fontFamily:"monospace", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {linkPedido}
+                        </div>
+                        <button onClick={()=>navigator.clipboard.writeText(linkPedido)}
+                          style={{ background:`${C.accent}20`, border:`1px solid ${C.accent}40`, borderRadius:8, padding:"8px 12px", color:C.accent, cursor:"pointer", fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>
+                          Copiar link
+                        </button>
+                      </div>
+                      <div style={{ color:C.muted, fontSize:11, marginTop:6 }}>Envie esse link para o cliente preencher pedidos. Eles cairão direto na aba Demandas.</div>
+                    </div>
                   </div>
                 )}
 
-                {/* ── PROJETOS ── */}
+                {/* ── DEMANDAS ── */}
+                {tab==="demandas" && (
+                  <div>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                      <span style={{ color:C.muted, fontSize:13 }}>{demandasCliente.length} demanda{demandasCliente.length!==1?"s":""}</span>
+                      <button onClick={openAddDemanda}
+                        style={{ background:`${C.accent}15`, border:`1px solid ${C.accent}30`, borderRadius:9, padding:"7px 14px", color:C.accent, cursor:"pointer", fontSize:12, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
+                        <Ico n="plus" s={13} c={C.accent}/> Nova demanda
+                      </button>
+                    </div>
+
+                    {demandasCliente.length === 0 ? (
+                      <div style={{ textAlign:"center", padding:"40px 0", color:C.muted }}>
+                        <div style={{ fontSize:32, marginBottom:10 }}>📥</div>
+                        <div style={{ fontSize:14, marginBottom:6 }}>Nenhuma demanda ainda.</div>
+                        <div style={{ fontSize:12 }}>Crie manualmente ou compartilhe o link de pedidos na aba Briefing.</div>
+                      </div>
+                    ) : (
+                      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                        {demandasCliente.map(d => {
+                          const st = STATUS_DEMANDA[d.status] || STATUS_DEMANDA.triagem;
+                          const atrasado = d.prazo && d.prazo < new Date().toISOString().split("T")[0] && d.status !== "finalizado";
+                          return (
+                            <div key={d.id} style={{ background:C.surface, border:`1px solid ${atrasado?C.red:C.border}`, borderRadius:12, padding:"14px 16px", borderLeft:`3px solid ${atrasado?C.red:st.color}` }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                                <div style={{ flex:1 }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                                    <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>{d.titulo}</span>
+                                    {atrasado && <span style={{ background:`${C.red}20`, color:C.red, fontSize:10, padding:"2px 7px", borderRadius:99, fontWeight:700 }}>ATRASADO</span>}
+                                  </div>
+                                  {d.descricao && <div style={{ color:C.muted, fontSize:13, lineHeight:1.5, marginBottom:6 }}>{d.descricao}</div>}
+                                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                                    <span style={{ background:`${st.color}20`, color:st.color, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>{st.icon} {st.label}</span>
+                                    {d.prazo && <span style={{ color:atrasado?C.red:C.muted, fontSize:12 }}>📅 {d.prazo}</span>}
+                                    {d.valor > 0 && <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {d.valor.toLocaleString("pt-BR")}</span>}
+                                  </div>
+                                </div>
+                                <div style={{ display:"flex", gap:6, marginLeft:12, flexShrink:0 }}>
+                                  <button onClick={()=>openEditDemanda(d)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:3 }}><Ico n="edit" s={13}/></button>
+                                  <button onClick={()=>delDemanda(d.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.red, padding:3 }}><Ico n="trash" s={13}/></button>
+                                </div>
+                              </div>
+                              {/* Botões de status */}
+                              <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+                                {Object.entries(STATUS_DEMANDA).filter(([k])=>k!==d.status).map(([k,v])=>(
+                                  <button key={k} onClick={()=>moveDemanda(d.id,k)}
+                                    style={{ background:`${v.color}12`, border:`1px solid ${v.color}30`, borderRadius:7, padding:"3px 10px", color:v.color, fontSize:11, cursor:"pointer", fontWeight:600 }}>
+                                    → {v.icon} {v.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── PORTFÓLIO ── */}
                 {tab==="projetos" && (
                   <div>
-                    {/* Header da aba com botão adicionar */}
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                       <span style={{ color:C.muted, fontSize:13 }}>{projCliente.length} projeto{projCliente.length!==1?"s":""} vinculado{projCliente.length!==1?"s":""}</span>
                       {projDisponiveis.length > 0 && (
@@ -1519,8 +1635,6 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                         </button>
                       )}
                     </div>
-
-                    {/* Dropdown de projetos disponíveis */}
                     {showAddProj && (
                       <div style={{ background:C.surface, border:`1px solid ${C.accent}40`, borderRadius:12, marginBottom:16, overflow:"hidden" }}>
                         <div style={{ padding:"10px 14px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between" }}>
@@ -1535,20 +1649,17 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                             <span style={{ fontSize:20 }}>{p.cover}</span>
                             <div style={{ flex:1 }}>
                               <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{p.title}</div>
-                              <div style={{ color:C.muted, fontSize:11 }}>{p.tag} {p.month && `· ${p.month}`}</div>
+                              <div style={{ color:C.muted, fontSize:11 }}>{p.tag}{p.month && ` · ${p.month}`}</div>
                             </div>
                             {p.value>0 && <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {p.value.toLocaleString("pt-BR")}</span>}
                           </div>
                         ))}
                       </div>
                     )}
-
-                    {/* Lista de projetos vinculados */}
                     {projCliente.length === 0 ? (
                       <div style={{ textAlign:"center", padding:"40px 0", color:C.muted }}>
                         <div style={{ fontSize:32, marginBottom:10 }}>🗂</div>
-                        <div style={{ fontSize:14, marginBottom:8 }}>Nenhum projeto vinculado ainda.</div>
-                        <div style={{ fontSize:12 }}>Use o botão "Vincular projeto" acima para associar projetos do seu portfólio a este cliente.</div>
+                        <div style={{ fontSize:14 }}>Nenhum projeto vinculado.</div>
                       </div>
                     ) : (
                       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
@@ -1593,7 +1704,7 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
         </div>
       )}
 
-      {/* Modal de cadastro/edição */}
+      {/* Modal cliente */}
       <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Editar Cliente":"Novo Cliente Ativo"} w={560}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
           <Field label="Nome" value={form.name} onChange={v=>setForm(f=>({...f,name:v}))}/>
@@ -1613,9 +1724,26 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
           <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>📋 Briefing / Manual da Marca</label>
           <textarea value={form.briefing_padrao||""} onChange={e=>setForm(f=>({...f,briefing_padrao:e.target.value}))}
             placeholder="Tom de voz, referências visuais, o que evitar, público-alvo..."
-            rows={4} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+            rows={3} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
         </div>
         <Btn onClick={save} full>{editId?"Salvar alterações":"Adicionar Cliente"}</Btn>
+      </Modal>
+
+      {/* Modal demanda */}
+      <Modal open={modalDemanda} onClose={()=>setModalDemanda(false)} title={editDemandaId?"Editar Demanda":"Nova Demanda"}>
+        <Field label="Título" value={formD.titulo} onChange={v=>setFormD(f=>({...f,titulo:v}))} placeholder="Ex: Banner para stories, Landing page..."/>
+        <div style={{ marginBottom:14 }}>
+          <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Descrição</label>
+          <textarea value={formD.descricao||""} onChange={e=>setFormD(f=>({...f,descricao:e.target.value}))}
+            placeholder="Detalhes do pedido, referências, observações..."
+            rows={3} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
+          <Field label="Prazo" value={formD.prazo||""} onChange={v=>setFormD(f=>({...f,prazo:v}))} type="date"/>
+          <Field label="Valor (R$)" value={formD.valor||""} onChange={v=>setFormD(f=>({...f,valor:v}))} type="number"/>
+          <Field label="Status" value={formD.status} onChange={v=>setFormD(f=>({...f,status:v}))} options={Object.entries(STATUS_DEMANDA).map(([k,v])=>({value:k,label:`${v.icon} ${v.label}`}))}/>
+        </div>
+        <Btn onClick={saveDemanda} full>{editDemandaId?"Salvar alterações":"Criar Demanda"}</Btn>
       </Modal>
     </div>
   );
@@ -1687,15 +1815,127 @@ function BriefingInline({ clienteId, value, onSave }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// FORMULÁRIO PÚBLICO DE PEDIDOS
+// ══════════════════════════════════════════════════════════════════════════════
+function FormularioPedido({ leads, setDemandas, setTasks }) {
+  // Detecta cliente pelo hash: #pedido/slug/id
+  const hash = window.location.hash;
+  const match = hash.match(/#pedido\/[^/]+\/(\d+)/);
+  const clienteId = match ? parseInt(match[1]) : null;
+  const cliente = leads.find(l => l.id === clienteId && l.categoria === "cliente_fixo");
+
+  const [form, setForm] = useState({ titulo:"", descricao:"", prazo:"" });
+  const [enviado, setEnviado] = useState(false);
+  const [erro, setErro] = useState(false);
+
+  const enviar = async () => {
+    if (!form.titulo || !cliente) { setErro(true); return; }
+    const nova = {
+      id: Date.now(),
+      titulo: form.titulo,
+      descricao: form.descricao,
+      prazo: form.prazo,
+      valor: 0,
+      status: "triagem",
+      cliente_id: cliente.id,
+      data_criacao: new Date().toISOString().split("T")[0],
+    };
+    setDemandas(ds => [...ds, nova]);
+    if (form.prazo) {
+      setTasks(ts => [...ts, {
+        id: Date.now()+1,
+        title: `📋 ${form.titulo} · ${cliente.name}`,
+        time: "09:00",
+        date: form.prazo,
+        done: false,
+        priority: "alta",
+        type: "entrega",
+      }]);
+    }
+    // Salvar no Supabase diretamente se disponível
+    if (typeof supabase !== "undefined" && supabase) {
+      try { await supabase.from("demandas").insert([nova]); } catch(e) {}
+    }
+    setEnviado(true);
+  };
+
+  if (!cliente) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ textAlign:"center", color:C.muted }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>❌</div>
+        <div style={{ fontSize:16, color:C.text, marginBottom:8 }}>Link inválido ou cliente não encontrado.</div>
+        <div style={{ fontSize:13 }}>Verifique o link com seu designer.</div>
+      </div>
+    </div>
+  );
+
+  if (enviado) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ textAlign:"center", maxWidth:400, padding:32 }}>
+        <div style={{ fontSize:56, marginBottom:16 }}>✅</div>
+        <div style={{ color:C.text, fontSize:22, fontWeight:800, fontFamily:"'Syne',sans-serif", marginBottom:8 }}>Pedido enviado!</div>
+        <div style={{ color:C.muted, fontSize:15, lineHeight:1.6 }}>Seu pedido foi recebido e já está em triagem. Entraremos em contato em breve.</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div style={{ width:"100%", maxWidth:520 }}>
+        {/* Header */}
+        <div style={{ textAlign:"center", marginBottom:32 }}>
+          <div style={{ width:60, height:60, borderRadius:16, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:26, fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif" }}>
+            {cliente.name.charAt(0)}
+          </div>
+          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, margin:"0 0 6px" }}>Fazer um pedido</h1>
+          <p style={{ color:C.muted, fontSize:14, margin:0 }}>Olá, {cliente.name.split(" ")[0]}! Preencha os dados do seu pedido.</p>
+        </div>
+
+        {/* Formulário */}
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:28 }}>
+          <div style={{ marginBottom:18 }}>
+            <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>Título do pedido *</label>
+            <input value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))}
+              placeholder="Ex: Banner para stories, Logo nova, Landing page..."
+              style={{ background:C.surface, border:`1px solid ${erro&&!form.titulo?C.red:C.border}`, borderRadius:10, padding:"12px 14px", color:C.text, fontSize:14, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
+            {erro && !form.titulo && <div style={{ color:C.red, fontSize:11, marginTop:4 }}>Campo obrigatório</div>}
+          </div>
+          <div style={{ marginBottom:18 }}>
+            <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>Descrição do pedido</label>
+            <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))}
+              placeholder="Descreva o que precisa: referências, tamanhos, cores preferidas, textos, links..."
+              rows={5} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 14px", color:C.text, fontSize:14, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+          </div>
+          <div style={{ marginBottom:24 }}>
+            <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>Prazo desejado</label>
+            <input type="date" value={form.prazo} onChange={e=>setForm(f=>({...f,prazo:e.target.value}))}
+              style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 14px", color:C.text, fontSize:14, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
+          </div>
+          <button onClick={enviar}
+            style={{ width:"100%", background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:12, padding:"14px", color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"'Syne',sans-serif", boxShadow:`0 4px 20px ${C.accentGlow}40` }}>
+            Enviar pedido →
+          </button>
+        </div>
+        <p style={{ textAlign:"center", color:C.muted, fontSize:12, marginTop:16 }}>Powered by DesignHub</p>
+      </div>
+    </div>
+  );
+}
+
+
 export default function App() {
-  const [view, setView] = useState("dashboard");
+  // Detecta rota pública de pedido via hash
+  const hashRoute = window.location.hash.startsWith("#pedido/") ? "pedido" : null;
+  const [view, setView] = useState(hashRoute || "dashboard");
 
   // Estado local (sempre funciona, mesmo offline)
-  const [leads,        setLeadsLocal]        = useLocalStorage("dh_leads",   initLeads);
-  const [tasks,        setTasksLocal]        = useLocalStorage("dh_tasks",   initTasks);
-  const [timerHistory, setTimerHistoryLocal] = useLocalStorage("dh_timer",   initTimerHistory);
-  const [portfolio,    setPortfolioLocal]    = useLocalStorage("dh_portfolio",initPortfolio);
-  const [notes,        setNotesLocal]        = useLocalStorage("dh_notes",   INIT_NOTES);
+  const [leads,        setLeadsLocal]        = useLocalStorage("dh_leads",     initLeads);
+  const [tasks,        setTasksLocal]        = useLocalStorage("dh_tasks",     initTasks);
+  const [timerHistory, setTimerHistoryLocal] = useLocalStorage("dh_timer",     initTimerHistory);
+  const [portfolio,    setPortfolioLocal]    = useLocalStorage("dh_portfolio", initPortfolio);
+  const [notes,        setNotesLocal]        = useLocalStorage("dh_notes",     INIT_NOTES);
+  const [demandas,     setDemandasLocal]     = useLocalStorage("dh_demandas",  initDemandas);
   const [col, setCol] = useState(false);
 
   // Estado de sincronização
@@ -1708,18 +1948,20 @@ export default function App() {
     async function loadFromCloud() {
       setSyncStatus("loading");
       try {
-        const [lR, tR, pR, nR, hR] = await Promise.all([
+        const [lR, tR, pR, nR, hR, dR] = await Promise.all([
           supabase.from("leads").select("*"),
           supabase.from("tasks").select("*"),
           supabase.from("portfolio").select("*"),
           supabase.from("notes").select("*"),
           supabase.from("timer_history").select("*"),
+          supabase.from("demandas").select("*"),
         ]);
         if (lR.data?.length) setLeadsLocal(lR.data);
         if (tR.data?.length) setTasksLocal(tR.data);
         if (pR.data?.length) setPortfolioLocal(pR.data);
         if (nR.data?.length) setNotesLocal(nR.data);
         if (hR.data?.length) setTimerHistoryLocal(hR.data);
+        if (dR.data?.length) setDemandasLocal(dR.data);
         setSyncStatus("ok");
       } catch {
         setSyncStatus("error");
@@ -1780,6 +2022,10 @@ export default function App() {
   const setTimerHistory = v => {
     const val = typeof v === "function" ? v(timerHistory) : v;
     setTimerHistoryLocal(val); syncTimerHistory(val);
+  };
+  const setDemandas = v => {
+    const val = typeof v === "function" ? v(demandas) : v;
+    setDemandasLocal(val); syncTable("demandas", val);
   };
 
   const saveTimerDay = (date, secs) => {
@@ -1892,7 +2138,8 @@ export default function App() {
           </div>
           {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView}/>}
           {view==="leads"          && <Leads leads={leads} setLeads={setLeads}/>}
-          {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio}/>}
+          {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
+          {view==="pedido"         && <FormularioPedido leads={leads} setDemandas={setDemandas} setTasks={setTasks}/>}
           {view==="agenda"         && <Agenda tasks={tasks} setTasks={setTasks}/>}
           {view==="finance"        && <Finance leads={leads}/>}
           {view==="timer"          && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
