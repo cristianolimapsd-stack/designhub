@@ -1076,6 +1076,10 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
   const [meta, setMeta] = useLocalStorage("dh_meta_mensal", 5000);
   const [editMeta, setEditMeta] = useState(false);
   const [metaInput, setMetaInput] = useState(String(meta));
+  // ── Despesas state — DEVE ficar aqui no topo (regra dos hooks) ──────────────
+  const [modalDesp, setModalDesp] = useState(false);
+  const [formDesp, setFormDesp] = useState({ id:0, descricao:"", valor:"", categoria:"ferramenta", data:"" });
+  const [editDespId, setEditDespId] = useState(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -1127,10 +1131,6 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
   const rankTags = Object.entries(tagMap).map(([tag,v])=>({tag,...v})).sort((a,b)=>b.total-a.total);
 
   // ── Despesas do mês ─────────────────────────────────────────────────────────
-  const ED = { id:0, descricao:"", valor:"", categoria:"ferramenta", data:selMonth+"-01" };
-  const [modalDesp, setModalDesp] = useState(false);
-  const [formDesp, setFormDesp] = useState(ED);
-  const [editDespId, setEditDespId] = useState(null);
   const despMes = despesas.filter(d=>(d.data||"").startsWith(selMonth));
   const totalDesp = despMes.reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
   const lucroMes = moReceita - totalDesp;
@@ -1143,7 +1143,8 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
     const d = {...formDesp, valor:parseFloat(formDesp.valor)||0, id:editDespId||Date.now()};
     if (editDespId) setDespesas(ds=>ds.map(x=>x.id===editDespId?d:x));
     else setDespesas(ds=>[...ds,d]);
-    setModalDesp(false); setFormDesp(ED); setEditDespId(null);
+    const empty = { id:0, descricao:"", valor:"", categoria:"ferramenta", data:selMonth+"-01" };
+    setModalDesp(false); setFormDesp(empty); setEditDespId(null);
   };
   const delDesp = id => { if(window.confirm("Excluir despesa?")) setDespesas(ds=>ds.filter(d=>d.id!==id)); };
 
@@ -2856,7 +2857,7 @@ function Kanban({ demandas, setDemandas, leads, setTasks }) {
                   )}
                   {/* Link de aprovação */}
                   {(()=>{
-                    const token = d.approve_token || btoa(`${d.id}-${d.titulo||""}`).replace(/=/g,"");
+                    const token = d.approve_token || `dhtoken${d.id}`;
                     const link = `${window.location.origin}/#aprovar/${token}`;
                     const status = d.approve_status;
                     return (
@@ -3117,7 +3118,7 @@ function AprovarPage() {
         const {data} = await supabase.from("demandas").select("*");
         if(data){
           const d = data.find(x=>{
-            const t = btoa(`${x.id}-${x.titulo||""}`).replace(/=/g,"");
+            const t = x.approve_token || `dhtoken${x.id}`;
             return t===token || x.approve_token===token;
           });
           setDemanda(d||null);
@@ -3376,7 +3377,7 @@ function PortalCliente() {
                       </div>
                       {/* Botão de aprovação — aparece quando demanda está em revisão ou aprovação */}
                       {(d.status==="revisao"||d.status==="aprovacao") && (()=>{
-                        const token = d.approve_token || btoa(`${d.id}-${d.titulo||""}`).replace(/=/g,"");
+                        const token = d.approve_token || `dhtoken${d.id}`;
                         const link = `${window.location.origin}/#aprovar/${token}`;
                         if (d.approve_status==="aprovado") return (
                           <div style={{ marginTop:12, background:`${C.green}15`, border:`1px solid ${C.green}30`, borderRadius:10, padding:"9px 14px", display:"flex", alignItems:"center", gap:8 }}>
@@ -3520,6 +3521,7 @@ export default function App() {
   const [portfolio,    setPortfolioLocal]    = useLocalStorage("dh_portfolio", initPortfolio);
   const [notes,        setNotesLocal]        = useLocalStorage("dh_notes",     INIT_NOTES);
   const [demandas,     setDemandasLocal]     = useLocalStorage("dh_demandas",  initDemandas);
+  const [despesas,     setDespesasLocal]     = useLocalStorage("dh_despesas",  []);
   const [col, setCol] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -3549,13 +3551,14 @@ export default function App() {
     async function loadFromCloud() {
       setSyncStatus("loading");
       try {
-        const [lR, tR, pR, nR, hR, dR] = await Promise.all([
+        const [lR, tR, pR, nR, hR, dR, despR] = await Promise.all([
           supabase.from("leads").select("*"),
           supabase.from("tasks").select("*"),
           supabase.from("portfolio").select("*"),
           supabase.from("notes").select("*"),
           supabase.from("timer_history").select("*"),
           supabase.from("demandas").select("*"),
+          supabase.from("despesas").select("*"),
         ]);
         if (lR.data?.length) setLeadsLocal(lR.data);
         if (tR.data?.length) setTasksLocal(tR.data);
@@ -3563,6 +3566,7 @@ export default function App() {
         if (nR.data?.length) setNotesLocal(nR.data);
         if (hR.data?.length) setTimerHistoryLocal(hR.data);
         if (dR.data?.length) setDemandasLocal(dR.data);
+        if (despR.data?.length) setDespesasLocal(despR.data);
         setSyncStatus("ok");
       } catch {
         setSyncStatus("error");
@@ -3654,6 +3658,10 @@ export default function App() {
   const setDemandas = v => {
     const val = typeof v === "function" ? v(demandas) : v;
     setDemandasLocal(val); syncTable("demandas", val);
+  };
+  const setDespesas = v => {
+    const val = typeof v === "function" ? v(despesas) : v;
+    setDespesasLocal(val); syncTable("despesas", val);
   };
 
   const saveTimerDay = (date, secs) => {
