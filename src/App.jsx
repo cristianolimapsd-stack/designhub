@@ -252,20 +252,22 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
       </div>
 
       {/* Timer */}
-      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"20px 24px", marginBottom:22, display:"flex", alignItems:"center", gap:20 }}>
-        <div style={{ width:46, height:46, borderRadius:12, background:timer.running?`${C.accentGlow}22`:C.border, display:"flex", alignItems:"center", justifyContent:"center", border:`1px solid ${timer.running?C.accent:C.border}` }}>
-          <Ico n="timer" s={20} c={timer.running?C.accent:C.muted}/>
-        </div>
-        <div style={{ flex:1 }}>
-          <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
-            <span style={{ color:timer.running?C.teal:C.text, fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, letterSpacing:"0.02em" }}>{timer.fmt(timer.seconds)}</span>
-            <span style={{ color:C.muted, fontSize:13 }}>{timer.running?"trabalhando":"pausado"} · {pct}% da meta diária</span>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"16px 20px", marginBottom:22 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:12 }}>
+          <div style={{ width:42, height:42, borderRadius:11, background:timer.running?`${C.accentGlow}22`:C.border, display:"flex", alignItems:"center", justifyContent:"center", border:`1px solid ${timer.running?C.accent:C.border}`, flexShrink:0 }}>
+            <Ico n="timer" s={19} c={timer.running?C.accent:C.muted}/>
           </div>
-          <div style={{ marginTop:8, height:4, background:C.surface, borderRadius:99, overflow:"hidden" }}>
-            <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${C.accentGlow},${C.accent})`, borderRadius:99, transition:"width 0.5s" }}/>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"baseline", gap:8, flexWrap:"wrap" }}>
+              <span style={{ color:timer.running?C.teal:C.text, fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, letterSpacing:"0.02em" }}>{timer.fmt(timer.seconds)}</span>
+              <span style={{ color:C.muted, fontSize:12 }}>{timer.running?"trabalhando":"pausado"} · {pct}% da meta</span>
+            </div>
+            <div style={{ marginTop:6, height:4, background:C.surface, borderRadius:99, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${C.accentGlow},${C.accent})`, borderRadius:99, transition:"width 0.5s" }}/>
+            </div>
           </div>
         </div>
-        <div style={{ display:"flex", gap:10 }}>
+        <div style={{ display:"flex", gap:8 }}>
           <Btn onClick={timer.toggle} variant={timer.running?"ghost":"primary"} small><Ico n={timer.running?"pause":"play"} s={13} c={timer.running?C.accent:"#fff"}/>{timer.running?"Pausar":"Iniciar"}</Btn>
           <Btn onClick={timer.reset} variant="danger" small><Ico n="save" s={12} c={C.red}/>Salvar dia</Btn>
         </div>
@@ -294,7 +296,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
           <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>🗂 Kanban — visão geral</span>
           <button onClick={()=>handleSetView("kanban")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:600 }}>Abrir Kanban →</button>
         </div>
-        <div style={{ display:"flex", gap:10 }}>
+        <div style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:4 }}>
           {KANBAN_COLS.map(col=>{
             const cfg = STATUS_DEMANDA[col];
             const n = demandas.filter(d=>d.status===col).length;
@@ -905,8 +907,10 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
           <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>{tasks.filter(t=>!t.done).length} tarefas pendentes</p>
         </div>
         <div style={{ display:"flex", gap:12 }}>
-          <Toggle val={vm} onChange={setVm} opts={[{v:"list",label:"Lista",icon:"list"},{v:"calendar",label:"Calendário",icon:"calendar"}]}/>
-          <Btn onClick={()=>openNew(selDay)}><Ico n="plus" s={14} c="#fff"/> Nova Tarefa</Btn>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <Toggle val={vm} onChange={setVm} opts={[{v:"list",label:"Lista",icon:"list"},{v:"calendar",label:"Cal",icon:"calendar"}]}/>
+            <Btn onClick={()=>openNew(selDay)}><Ico n="plus" s={14} c="#fff"/> Nova Tarefa</Btn>
+          </div>
         </div>
       </div>
       {vm==="list" ? (
@@ -1659,14 +1663,31 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
     );
   };
 
+  const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+
   return (
-    <div style={{ padding:"28px 32px", height:"calc(100vh - 54px)", display:"flex", flexDirection:"column" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
-        <div>
-          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>⭐ Clientes Ativos</h1>
-          <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>
-            {clientes.length} cliente{clientes.length!==1?"s":""} · R$ {demandas.filter(d => clientes.find(c=>c.id===d.cliente_id) && d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0).toLocaleString("pt-BR")} em receita total
-          </p>
+    <div style={{ padding:"16px", height:"calc(100vh - 54px)", display:"flex", flexDirection:"column" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:8 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {isMobile && sel && (
+            <button onClick={()=>setSelId(null)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 12px", color:C.accent, cursor:"pointer", fontWeight:700, fontSize:13, fontFamily:"inherit", display:"flex", alignItems:"center", gap:5 }}>
+              ← Voltar
+            </button>
+          )}
+          {(!isMobile || !sel) && (
+            <div>
+              <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, margin:0 }}>⭐ Clientes Ativos</h1>
+              <p style={{ color:C.muted, margin:"3px 0 0", fontSize:12 }}>
+                {clientes.length} cliente{clientes.length!==1?"s":""} · R$ {demandas.filter(d => clientes.find(c=>c.id===d.cliente_id) && d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0).toLocaleString("pt-BR")} em receita total
+              </p>
+            </div>
+          )}
+          {isMobile && sel && (
+            <div>
+              <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, margin:0 }}>{sel.name}</h1>
+              <p style={{ color:C.muted, margin:"2px 0 0", fontSize:12 }}>{sel.company}</p>
+            </div>
+          )}
         </div>
         <Btn onClick={openAdd}><Ico n="plus" s={14} c="#fff"/> Novo Cliente</Btn>
       </div>
@@ -1683,15 +1704,15 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
           </div>
         </div>
       ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:20, flex:1, minHeight:0 }}>
+        <div style={{ display: isMobile ? "block" : "grid", gridTemplateColumns:"280px 1fr", gap:16, flex:1, minHeight:0, overflow: isMobile ? "auto" : "unset" }}>
 
-          {/* Lista */}
-          <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", paddingRight:4 }}>
+          {/* Lista — esconde no mobile quando tem cliente selecionado */}
+          <div style={{ display: isMobile && sel ? "none" : "flex", flexDirection:"column", gap:8, overflowY:"auto", paddingRight:isMobile?0:4, height: isMobile ? "auto" : "100%" }}>
             {clientes.map(c => {
               const isSel = c.id === selId;
               const nDemandas = demandas.filter(d=>d.cliente_id===c.id).length;
               return (
-                <div key={c.id} onClick={()=>{ setSelId(c.id); setTab("briefing"); }}
+                <div key={c.id} onClick={()=>{ setSelId(c.id); setTab("briefing"); if(window.innerWidth<=768) window.scrollTo(0,0); }}
                   style={{ background:isSel?`${C.teal}12`:C.card, border:`1px solid ${isSel?C.teal:C.border}`, borderRadius:14, padding:"14px 16px", cursor:"pointer", transition:"all 0.15s", position:"relative" }}>
                   <div style={{ position:"absolute", top:0, left:0, bottom:0, width:3, background:isSel?C.teal:"transparent", borderRadius:"14px 0 0 14px" }}/>
                   <div style={{ display:"flex", alignItems:"center", gap:11, marginBottom:10 }}>
@@ -1715,9 +1736,9 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
             })}
           </div>
 
-          {/* Perfil */}
+          {/* Perfil — full screen no mobile */}
           {sel && (
-            <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, display: isMobile && sel ? "flex" : "flex", flexDirection:"column", overflow:"hidden", height: isMobile ? "calc(100vh - 140px)" : "100%" }}>
               {/* Header */}
               <div style={{ background:`linear-gradient(135deg,${C.teal}18,${C.accentGlow}12)`, borderBottom:`1px solid ${C.border}`, padding:"20px 24px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
@@ -3387,10 +3408,13 @@ export default function App() {
           .mobile-nav{display:flex!important;}
           .topbar-search{display:none!important;}
           .topbar-csv{display:none!important;}
-          .main-padding{padding:16px!important;}
+          .main-padding{padding:14px!important;}
           .grid-2col{grid-template-columns:1fr!important;}
           .dashboard-metrics{flex-direction:column!important;}
           .kanban-cols{grid-template-columns:repeat(2,minmax(200px,1fr))!important;}
+          .hide-mobile{display:none!important;}
+          .modal-wide{width:95vw!important;max-width:95vw!important;margin:10px!important;}
+          input,select,textarea{font-size:16px!important;}
         }
         @media(min-width:769px){
           .mobile-nav{display:none!important;}
