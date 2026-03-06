@@ -2604,7 +2604,8 @@ function Kanban({ demandas, setDemandas, leads, setTasks }) {
   const mover = (id, novoStatus) => {
     const now = new Date().toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
     setDemandas(ds => ds.map(d => {
-      if (d.id !== id) return d;
+      if (String(d.id) !== String(id)) return d;
+      if (d.status === novoStatus) return d; // não registra se status igual
       const entrada = { de: d.status, para: novoStatus, em: now };
       const historico = [...(d.historico||[]), entrada];
       return { ...d, status: novoStatus, historico };
@@ -2808,7 +2809,7 @@ function Kanban({ demandas, setDemandas, leads, setTasks }) {
         const atrasado = isAtrasado(d);
         return (
           <div onClick={()=>setModalCard(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-            <div onClick={e=>e.stopPropagation()} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:"100%", maxWidth:480 }}>
+            <div onClick={e=>e.stopPropagation()} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:24, width:"100%", maxWidth:520, maxHeight:"90vh", overflowY:"auto" }}>
               {/* Header */}
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
                 <div style={{ flex:1 }}>
@@ -3369,10 +3370,30 @@ function PortalCliente() {
                           })}
                         </div>
                       </div>
-                      <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                      <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
                         {d.prazo && <span style={{ color:atrasado?C.red:C.muted, fontSize:12, fontWeight:atrasado?700:400 }}>📅 {atrasado?"Atrasado · ":""}{d.prazo}</span>}
                         {d.valor>0 && <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {Number(d.valor).toLocaleString("pt-BR")}</span>}
                       </div>
+                      {/* Botão de aprovação — aparece quando demanda está em revisão ou aprovação */}
+                      {(d.status==="revisao"||d.status==="aprovacao") && (()=>{
+                        const token = d.approve_token || btoa(`${d.id}-${d.titulo||""}`).replace(/=/g,"");
+                        const link = `${window.location.origin}/#aprovar/${token}`;
+                        if (d.approve_status==="aprovado") return (
+                          <div style={{ marginTop:12, background:`${C.green}15`, border:`1px solid ${C.green}30`, borderRadius:10, padding:"9px 14px", display:"flex", alignItems:"center", gap:8 }}>
+                            <span style={{ color:C.green, fontWeight:700, fontSize:13 }}>✅ Você aprovou esta entrega</span>
+                          </div>
+                        );
+                        if (d.approve_status==="ajuste") return (
+                          <div style={{ marginTop:12, background:`${C.yellow}15`, border:`1px solid ${C.yellow}30`, borderRadius:10, padding:"9px 14px" }}>
+                            <span style={{ color:C.yellow, fontWeight:700, fontSize:13 }}>🔄 Ajuste solicitado — aguardando retorno</span>
+                          </div>
+                        );
+                        return (
+                          <a href={link} style={{ marginTop:12, display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:11, padding:"11px 18px", color:"#fff", fontSize:13, fontWeight:800, textDecoration:"none", boxShadow:`0 4px 14px ${C.accentGlow}40` }}>
+                            ✅ Aprovar entrega ou solicitar ajustes →
+                          </a>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -3650,7 +3671,8 @@ export default function App() {
   const timer = useTimer(saveTimerDay);
 
   // ── Early returns para rotas públicas (sem login) ─────────────────────────
-  if (isPortal) return <PortalCliente />;
+  if (isPortal)  return <PortalCliente />;
+  if (isAprovar) return <AprovarPage />;
   if (isPedido) return (
     <>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;}input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5);}`}</style>
