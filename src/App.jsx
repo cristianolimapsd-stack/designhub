@@ -35,7 +35,7 @@ const NOW_MO    = 2; // index 0-based = March
 // ─── Initial Data ─────────────────────────────────────────────────────────────
 const CATEGORIA = {
   lead:         { label:"Lead",          color:C.yellow, icon:"⚡" },
-  cliente_fixo: { label:"Cliente Fixo",  color:C.teal,   icon:"⭐" },
+  cliente_fixo: { label:"Cliente Ativo",  color:C.teal,   icon:"⭐" },
 };
 
 const initLeads = [
@@ -558,7 +558,7 @@ function Leads({ leads, setLeads }) {
                   📋 Briefing Padrão da Marca
                 </label>
                 {briefingLead.categoria!=="cliente_fixo" && (
-                  <span style={{ color:C.yellow, fontSize:10 }}>⚠ converta para Cliente Fixo</span>
+                  <span style={{ color:C.yellow, fontSize:10 }}>⚠ converta para Cliente Ativo</span>
                 )}
               </div>
               <BriefingEditor lead={briefingLead} onSave={saveBriefing} />
@@ -568,7 +568,7 @@ function Leads({ leads, setLeads }) {
             <div style={{ marginTop:18, display:"flex", flexDirection:"column", gap:8 }}>
               {briefingLead.categoria!=="cliente_fixo" && (
                 <button onClick={()=>{converter(briefingLead.id);}} style={{ background:`linear-gradient(135deg,${C.teal}88,${C.teal})`, border:"none", borderRadius:10, padding:"11px 18px", color:"#fff", cursor:"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-                  ⭐ Converter em Cliente Fixo
+                  ⭐ Converter em Cliente Ativo
                 </button>
               )}
               <button onClick={()=>{openEdit(briefingLead);setBriefingId(null);}} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 18px", color:C.text, cursor:"pointer", fontWeight:600, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
@@ -649,7 +649,7 @@ function Leads({ leads, setLeads }) {
                     <td style={{ padding:"13px 18px" }}><span style={{ background:`${STATUS[l.status].color}18`, color:STATUS[l.status].color, fontSize:11, padding:"4px 11px", borderRadius:99, fontWeight:600 }}>{STATUS[l.status].label}</span></td>
                     <td style={{ padding:"13px 18px" }} onClick={e=>e.stopPropagation()}>
                       <div style={{ display:"flex", gap:8 }}>
-                        {l.categoria!=="cliente_fixo"&&<button onClick={()=>converter(l.id)} title="Converter em Cliente Fixo" style={{ background:`${C.teal}15`, border:`1px solid ${C.teal}30`, borderRadius:7, padding:"4px 8px", color:C.teal, cursor:"pointer", fontSize:11, fontWeight:700 }}>⭐</button>}
+                        {l.categoria!=="cliente_fixo"&&<button onClick={()=>converter(l.id)} title="Converter em Cliente Ativo" style={{ background:`${C.teal}15`, border:`1px solid ${C.teal}30`, borderRadius:7, padding:"4px 8px", color:C.teal, cursor:"pointer", fontSize:11, fontWeight:700 }}>⭐</button>}
                         <button onClick={()=>openEdit(l)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="edit" s={14}/></button>
                         <button onClick={()=>del(l.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.red, padding:4 }}><Ico n="trash" s={14}/></button>
                       </div>
@@ -1254,6 +1254,7 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
   const [form, setForm] = useState(E);
 
   const sel = clientes.find(c => c.id === selId);
+  const [showAddProj, setShowAddProj] = useState(false);
 
   const openAdd  = () => { setForm(E); setEditId(null); setModal(true); };
   const openEdit = c  => { setForm({...E,...c, value:String(c.value||"")}); setEditId(c.id); setModal(true); };
@@ -1276,14 +1277,27 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
     setLeads(ls => ls.map(l => l.id===id ? {...l, [field]:val} : l));
   };
 
-  // projetos do portfólio vinculados ao cliente pelo nome/empresa
+  // projetos vinculados: manual (projeto_ids) + auto-detecção por nome/empresa
+  const projIds = sel?.projeto_ids || [];
   const projCliente = sel
-    ? portfolio.filter(p =>
-        p.description?.toLowerCase().includes(sel.name.toLowerCase()) ||
-        p.description?.toLowerCase().includes(sel.company?.toLowerCase()) ||
-        p.title?.toLowerCase().includes(sel.company?.toLowerCase())
-      )
+    ? portfolio.filter(p => {
+        const manualMatch = projIds.includes(p.id);
+        const autoMatch =
+          p.description?.toLowerCase().includes(sel.name.toLowerCase()) ||
+          (sel.company && p.description?.toLowerCase().includes(sel.company.toLowerCase())) ||
+          (sel.company && p.title?.toLowerCase().includes(sel.company.toLowerCase()));
+        return manualMatch || autoMatch;
+      })
     : [];
+  // projetos disponíveis para vincular (os que ainda não estão vinculados)
+  const projDisponiveis = portfolio.filter(p => !projCliente.find(pc => pc.id === p.id));
+  const vincularProjeto = (projId) => {
+    const novaLista = [...new Set([...projIds, projId])];
+    updateField(sel.id, "projeto_ids", novaLista);
+  };
+  const desvincularProjeto = (projId) => {
+    updateField(sel.id, "projeto_ids", projIds.filter(id => id !== projId));
+  };
 
   // valor total pago (leads com status fechado)
   const totalPago = sel ? (parseFloat(sel.value)||0) : 0;
@@ -1327,7 +1341,7 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
         <div>
           <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>
-            ⭐ Clientes Fixos
+            ⭐ Clientes Ativos
           </h1>
           <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>
             {clientes.length} cliente{clientes.length!==1?"s":""} · R$ {clientes.reduce((a,b)=>a+(parseFloat(b.value)||0),0).toLocaleString("pt-BR")} em receita total
@@ -1340,9 +1354,9 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
         <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <div style={{ textAlign:"center", maxWidth:380 }}>
             <div style={{ fontSize:48, marginBottom:16 }}>⭐</div>
-            <div style={{ color:C.text, fontWeight:700, fontSize:18, marginBottom:8 }}>Nenhum cliente fixo ainda</div>
+            <div style={{ color:C.text, fontWeight:700, fontSize:18, marginBottom:8 }}>Nenhum cliente ativo ainda</div>
             <div style={{ color:C.muted, fontSize:14, marginBottom:24, lineHeight:1.6 }}>
-              Adicione clientes fixos aqui ou converta leads na aba CRM clicando no botão ⭐.
+              Adicione clientes ativos aqui ou converta leads na aba CRM clicando no botão ⭐.
             </div>
             <Btn onClick={openAdd}><Ico n="plus" s={14} c="#fff"/> Adicionar cliente</Btn>
           </div>
@@ -1396,7 +1410,7 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                       <div style={{ color:C.text, fontWeight:800, fontSize:20, fontFamily:"'Syne',sans-serif", marginBottom:3 }}>{sel.name}</div>
                       <div style={{ color:C.muted, fontSize:13, marginBottom:6 }}>{sel.company} {sel.email && `· ${sel.email}`}</div>
                       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                        <span style={{ background:`${C.teal}20`, color:C.teal, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>⭐ Cliente Fixo</span>
+                        <span style={{ background:`${C.teal}20`, color:C.teal, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>⭐ Cliente Ativo</span>
                         {sel.tag && <span style={{ background:`${C.accent}18`, color:C.accent, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:600 }}>{sel.tag}</span>}
                         {sel.telefone && <span style={{ background:C.surface, color:C.muted, fontSize:11, padding:"3px 10px", borderRadius:99 }}>📱 {sel.telefone}</span>}
                       </div>
@@ -1495,14 +1509,49 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                 {/* ── PROJETOS ── */}
                 {tab==="projetos" && (
                   <div>
+                    {/* Header da aba com botão adicionar */}
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                      <span style={{ color:C.muted, fontSize:13 }}>{projCliente.length} projeto{projCliente.length!==1?"s":""} vinculado{projCliente.length!==1?"s":""}</span>
+                      {projDisponiveis.length > 0 && (
+                        <button onClick={()=>setShowAddProj(v=>!v)}
+                          style={{ background:`${C.accent}15`, border:`1px solid ${C.accent}30`, borderRadius:9, padding:"7px 14px", color:C.accent, cursor:"pointer", fontSize:12, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
+                          <Ico n="plus" s={13} c={C.accent}/> Vincular projeto
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Dropdown de projetos disponíveis */}
+                    {showAddProj && (
+                      <div style={{ background:C.surface, border:`1px solid ${C.accent}40`, borderRadius:12, marginBottom:16, overflow:"hidden" }}>
+                        <div style={{ padding:"10px 14px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between" }}>
+                          <span style={{ color:C.text, fontSize:13, fontWeight:600 }}>Selecione um projeto do portfólio</span>
+                          <button onClick={()=>setShowAddProj(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted }}><Ico n="close" s={14}/></button>
+                        </div>
+                        {projDisponiveis.map(p=>(
+                          <div key={p.id} onClick={()=>{ vincularProjeto(p.id); setShowAddProj(false); }}
+                            style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 14px", borderBottom:`1px solid ${C.border}`, cursor:"pointer" }}
+                            onMouseEnter={e=>e.currentTarget.style.background=C.cardHover}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            <span style={{ fontSize:20 }}>{p.cover}</span>
+                            <div style={{ flex:1 }}>
+                              <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{p.title}</div>
+                              <div style={{ color:C.muted, fontSize:11 }}>{p.tag} {p.month && `· ${p.month}`}</div>
+                            </div>
+                            {p.value>0 && <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {p.value.toLocaleString("pt-BR")}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Lista de projetos vinculados */}
                     {projCliente.length === 0 ? (
                       <div style={{ textAlign:"center", padding:"40px 0", color:C.muted }}>
                         <div style={{ fontSize:32, marginBottom:10 }}>🗂</div>
-                        <div style={{ fontSize:14 }}>Nenhum projeto do portfólio vinculado a este cliente.</div>
-                        <div style={{ fontSize:12, marginTop:6 }}>Os projetos aparecem aqui quando o nome do cliente ou empresa constar na descrição do projeto no Portfólio.</div>
+                        <div style={{ fontSize:14, marginBottom:8 }}>Nenhum projeto vinculado ainda.</div>
+                        <div style={{ fontSize:12 }}>Use o botão "Vincular projeto" acima para associar projetos do seu portfólio a este cliente.</div>
                       </div>
                     ) : (
-                      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                         {projCliente.map(p=>(
                           <div key={p.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", display:"flex", alignItems:"center", gap:14 }}>
                             <div style={{ width:44, height:44, borderRadius:11, background:`${C.accentGlow}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{p.cover}</div>
@@ -1514,12 +1563,18 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
                                 {p.month && <span style={{ color:C.muted, fontSize:11 }}>{p.month}</span>}
                               </div>
                             </div>
-                            <div style={{ textAlign:"right", flexShrink:0 }}>
+                            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6, flexShrink:0 }}>
                               {p.value>0 && <div style={{ color:C.green, fontWeight:700, fontSize:14 }}>R$ {p.value.toLocaleString("pt-BR")}</div>}
                               <a href={p.url} target="_blank" rel="noopener noreferrer"
-                                style={{ color:C.accent, fontSize:12, display:"flex", alignItems:"center", gap:4, marginTop:4, textDecoration:"none" }}>
+                                style={{ color:C.accent, fontSize:12, display:"flex", alignItems:"center", gap:4, textDecoration:"none" }}>
                                 <Ico n="externalLink" s={12} c={C.accent}/> Abrir
                               </a>
+                              {projIds.includes(p.id) && (
+                                <button onClick={()=>desvincularProjeto(p.id)}
+                                  style={{ background:"none", border:"none", color:C.muted, fontSize:11, cursor:"pointer", padding:0, display:"flex", alignItems:"center", gap:3 }}>
+                                  <Ico n="close" s={10} c={C.muted}/> desvincular
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1539,7 +1594,7 @@ function ClientesFixos({ leads, setLeads, portfolio }) {
       )}
 
       {/* Modal de cadastro/edição */}
-      <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Editar Cliente":"Novo Cliente Fixo"} w={560}>
+      <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Editar Cliente":"Novo Cliente Ativo"} w={560}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
           <Field label="Nome" value={form.name} onChange={v=>setForm(f=>({...f,name:v}))}/>
           <Field label="Empresa" value={form.company||""} onChange={v=>setForm(f=>({...f,company:v}))}/>
@@ -1762,7 +1817,7 @@ export default function App() {
   const nav = [
     { id:"dashboard",       label:"Dashboard",        icon:"dashboard", sec:"principal" },
     { id:"leads",           label:"CRM · Leads",       icon:"leads",     sec:"gestao"    },
-    { id:"clientes_fixos",  label:"Clientes Fixos",    icon:"star",      sec:"gestao"    },
+    { id:"clientes_fixos",  label:"Clientes Ativos",    icon:"star",      sec:"gestao"    },
     { id:"agenda",          label:"Agenda",            icon:"agenda",    sec:"gestao"    },
     { id:"finance",         label:"Financeiro",        icon:"finance",   sec:"gestao"    },
     { id:"timer",           label:"Horas Trabalhadas", icon:"clock",     sec:"gestao"    },
