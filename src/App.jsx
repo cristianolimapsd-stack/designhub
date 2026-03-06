@@ -39,13 +39,14 @@ const CATEGORIA = {
 };
 
 const STATUS_DEMANDA = {
+  agenda:      { label:"Agenda",       color:"#818cf8", icon:"📆" },
   triagem:     { label:"Triagem",      color:"#94a3b8", icon:"📥" },
   em_criacao:  { label:"Em Criação",   color:"#a78bfa", icon:"✏️"  },
   revisao:     { label:"Revisão",      color:"#38bdf8", icon:"🔍" },
   aprovacao:   { label:"Aprovação",    color:"#fb923c", icon:"👀" },
   finalizado:  { label:"Finalizado",   color:"#4ade80", icon:"✅" },
 };
-const KANBAN_COLS = ["triagem","em_criacao","revisao","aprovacao","finalizado"];
+const KANBAN_COLS = ["agenda","triagem","em_criacao","revisao","aprovacao","finalizado"];
 
 const initLeads = [];
 
@@ -766,7 +767,7 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // AGENDA
 // ══════════════════════════════════════════════════════════════════════════════
-function Agenda({ tasks, setTasks }) {
+function Agenda({ tasks, setTasks, demandas, setDemandas }) {
   const today = new Date().toISOString().split("T")[0];
   const [vm, setVm] = useState("list");
   const [modal, setModal] = useState(false);
@@ -775,10 +776,30 @@ function Agenda({ tasks, setTasks }) {
   const [form, setForm] = useState({ title:"", time:"09:00", date:today, priority:"media", type:"tarefa" });
 
   const toggle = id => setTasks(ts=>ts.map(t=>t.id===id?{...t,done:!t.done}:t));
-  const del = id => setTasks(ts=>ts.filter(t=>t.id!==id));
+  const del = id => {
+    setTasks(ts => ts.filter(t => t.id !== id));
+    if (setDemandas) setDemandas(ds => ds.filter(d => d.task_id !== id));
+  };
   const add = () => {
     if (!form.title) return;
-    setTasks(ts=>[...ts,{...form,id:Date.now(),done:false}]);
+    const newId = Date.now();
+    setTasks(ts=>[...ts,{...form,id:newId,done:false}]);
+    // Criar demanda no Kanban com status "agenda"
+    if (setDemandas) {
+      const demanda = {
+        id: newId + 1,
+        titulo: form.title,
+        descricao: "",
+        prazo: form.date,
+        valor: 0,
+        status: "agenda",
+        cliente_id: null,
+        tag: form.type === "reuniao" ? "Reunião" : form.type === "entrega" ? "Entrega" : "Tarefa",
+        task_id: newId,
+        data_criacao: new Date().toISOString().split("T")[0],
+      };
+      setDemandas(ds => [...ds, demanda]);
+    }
     setForm(f=>({...f,title:"",time:"09:00"}));
     setModal(false);
   };
@@ -2280,8 +2301,8 @@ function Kanban({ demandas, setDemandas, leads }) {
                         </div>
                       )}
 
-                      {/* Botões mover */}
-                      <div style={{ display:"flex", gap:4, marginTop:9, paddingTop:8, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
+                      {/* Botões mover + excluir */}
+                      <div style={{ display:"flex", gap:4, marginTop:9, paddingTop:8, borderTop:`1px solid ${C.border}`, flexWrap:"wrap", alignItems:"center" }}>
                         {KANBAN_COLS.filter(k => k !== col).map(k => {
                           const v = STATUS_DEMANDA[k];
                           const idx = KANBAN_COLS.indexOf(k);
@@ -2295,6 +2316,10 @@ function Kanban({ demandas, setDemandas, leads }) {
                             </button>
                           );
                         })}
+                        <button onClick={e => { e.stopPropagation(); if(window.confirm("Excluir esta demanda?")) setDemandas(ds => ds.filter(x => x.id !== d.id)); }}
+                          style={{ marginLeft:"auto", background:`${C.red}15`, border:`1px solid ${C.red}30`, borderRadius:6, padding:"3px 8px", color:C.red, fontSize:10, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:3 }}>
+                          🗑
+                        </button>
                       </div>
                     </div>
                   );
@@ -2622,7 +2647,7 @@ export default function App() {
           {view==="leads"          && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
           {view==="pedido"         && <FormularioPedido leads={leads} setDemandas={setDemandas} setTasks={setTasks}/>}
-          {view==="agenda"         && <Agenda tasks={tasks} setTasks={setTasks}/>}
+          {view==="agenda"         && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="finance"        && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory}/>}
           {view==="timer"          && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
           {view==="portfolio"      && <Portfolio items={portfolio} setItems={setPortfolio}/>}
