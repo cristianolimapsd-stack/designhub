@@ -41,9 +41,11 @@ const CATEGORIA = {
 const STATUS_DEMANDA = {
   triagem:     { label:"Triagem",      color:"#94a3b8", icon:"📥" },
   em_criacao:  { label:"Em Criação",   color:"#a78bfa", icon:"✏️"  },
+  revisao:     { label:"Revisão",      color:"#38bdf8", icon:"🔍" },
   aprovacao:   { label:"Aprovação",    color:"#fb923c", icon:"👀" },
   finalizado:  { label:"Finalizado",   color:"#4ade80", icon:"✅" },
 };
+const KANBAN_COLS = ["triagem","em_criacao","revisao","aprovacao","finalizado"];
 
 const initLeads = [
   { id:1, name:"Mateus Costa",   company:"Pixel Studio",  email:"mateus@pixel.io",  value:4500,  status:"novo",       date:"2026-03-01", tag:"Design",   categoria:"lead",         briefing_padrao:"" },
@@ -1837,13 +1839,16 @@ function FormularioPedido({ setDemandas, setTasks }) {
     async function buscar() {
       try {
         if (dbReady) {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from("leads")
             .select("*")
             .eq("id", clienteId)
-            .eq("categoria", "cliente_fixo")
             .single();
+          // aceita qualquer lead com esse ID (categoria pode não estar migrada ainda)
           setCliente(data || null);
+        } else {
+          // Supabase não configurado
+          setCliente(null);
         }
       } catch(e) {
         setCliente(null);
@@ -1940,6 +1945,277 @@ function FormularioPedido({ setDemandas, setTasks }) {
         </div>
         <p style={{ textAlign:"center", color:C.muted, fontSize:12, marginTop:16 }}>Powered by DesignHub</p>
       </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// KANBAN
+// ══════════════════════════════════════════════════════════════════════════════
+function Kanban({ demandas, setDemandas, leads }) {
+  const [dragId,    setDragId]    = useState(null);
+  const [dragOver,  setDragOver]  = useState(null);
+  const [modalCard, setModalCard] = useState(null); // demanda selecionada
+  const [filterCli, setFilterCli] = useState("todos");
+
+  const today = new Date().toISOString().split("T")[0];
+
+  // Clientes ativos para filtro
+  const clientes = leads.filter(l => l.categoria === "cliente_fixo");
+
+  // Demandas filtradas
+  const demandasFiltradas = filterCli === "todos"
+    ? demandas
+    : demandas.filter(d => String(d.cliente_id) === String(filterCli));
+
+  const mover = (id, novoStatus) => {
+    setDemandas(ds => ds.map(d => d.id === id ? { ...d, status: novoStatus } : d));
+  };
+
+  // Drag handlers
+  const onDragStart = (e, id) => {
+    setDragId(id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const onDragOver = (e, col) => {
+    e.preventDefault();
+    setDragOver(col);
+  };
+  const onDrop = (e, col) => {
+    e.preventDefault();
+    if (dragId) mover(dragId, col);
+    setDragId(null);
+    setDragOver(null);
+  };
+  const onDragEnd = () => { setDragId(null); setDragOver(null); };
+
+  const getCliente = (clienteId) => leads.find(l => l.id === clienteId || l.id === parseInt(clienteId));
+
+  const isAtrasado = (d) => d.prazo && d.prazo < today && d.status !== "finalizado";
+
+  return (
+    <div style={{ padding:"28px 32px", height:"calc(100vh - 54px)", display:"flex", flexDirection:"column" }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexShrink:0 }}>
+        <div>
+          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>🗂 Kanban</h1>
+          <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>
+            {demandas.length} demanda{demandas.length!==1?"s":""} · {demandas.filter(d=>isAtrasado(d)).length} atrasada{demandas.filter(d=>isAtrasado(d)).length!==1?"s":""}
+          </p>
+        </div>
+        {/* Filtro por cliente */}
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ color:C.muted, fontSize:12 }}>Cliente:</span>
+          <select value={filterCli} onChange={e=>setFilterCli(e.target.value)}
+            style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 12px", color:C.text, fontSize:13, outline:"none", cursor:"pointer", fontFamily:"inherit" }}>
+            <option value="todos">Todos</option>
+            {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Colunas */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, flex:1, minHeight:0, overflowX:"auto" }}>
+        {KANBAN_COLS.map(col => {
+          const cfg = STATUS_DEMANDA[col];
+          const cards = demandasFiltradas.filter(d => d.status === col);
+          const isOver = dragOver === col;
+
+          return (
+            <div key={col}
+              onDragOver={e => onDragOver(e, col)}
+              onDrop={e => onDrop(e, col)}
+              onDragLeave={() => setDragOver(null)}
+              style={{ display:"flex", flexDirection:"column", background:isOver?`${cfg.color}10`:C.surface, border:`1px solid ${isOver?cfg.color:C.border}`, borderRadius:14, transition:"all 0.15s", minWidth:200 }}>
+
+              {/* Cabeçalho da coluna */}
+              <div style={{ padding:"14px 16px 10px", borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                    <span style={{ fontSize:16 }}>{cfg.icon}</span>
+                    <span style={{ color:cfg.color, fontWeight:700, fontSize:13 }}>{cfg.label}</span>
+                  </div>
+                  <span style={{ background:`${cfg.color}20`, color:cfg.color, fontSize:11, fontWeight:700, padding:"2px 9px", borderRadius:99 }}>{cards.length}</span>
+                </div>
+                {/* Barra de progresso */}
+                <div style={{ marginTop:8, height:2, background:C.border, borderRadius:99 }}>
+                  <div style={{ height:2, background:cfg.color, borderRadius:99, width:demandas.length>0?`${Math.round((cards.length/Math.max(demandas.length,1))*100)}%`:"0%", transition:"width 0.3s" }}/>
+                </div>
+              </div>
+
+              {/* Cards */}
+              <div style={{ flex:1, overflowY:"auto", padding:"10px 10px", display:"flex", flexDirection:"column", gap:8 }}>
+                {cards.length === 0 && (
+                  <div style={{ textAlign:"center", padding:"20px 0", color:C.muted, fontSize:12, opacity:0.6 }}>
+                    {isOver ? "Soltar aqui" : "Vazio"}
+                  </div>
+                )}
+                {cards.map(d => {
+                  const cliente = getCliente(d.cliente_id);
+                  const atrasado = isAtrasado(d);
+                  const isDragging = dragId === d.id;
+                  const diasRestantes = d.prazo ? Math.ceil((new Date(d.prazo) - new Date(today)) / (1000*60*60*24)) : null;
+
+                  return (
+                    <div key={d.id}
+                      draggable
+                      onDragStart={e => onDragStart(e, d.id)}
+                      onDragEnd={onDragEnd}
+                      onClick={() => setModalCard(d)}
+                      style={{
+                        background: isDragging ? `${cfg.color}15` : C.card,
+                        border: `1px solid ${atrasado ? C.red : isDragging ? cfg.color : C.border}`,
+                        borderLeft: `3px solid ${atrasado ? C.red : cfg.color}`,
+                        borderRadius: 11,
+                        padding: "12px 13px",
+                        cursor: "grab",
+                        opacity: isDragging ? 0.5 : 1,
+                        transition: "all 0.13s",
+                        userSelect: "none",
+                      }}>
+
+                      {/* Título + alerta */}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6, gap:6 }}>
+                        <span style={{ color:C.text, fontWeight:700, fontSize:13, lineHeight:1.4 }}>{d.titulo}</span>
+                        {atrasado && (
+                          <span style={{ background:`${C.red}20`, color:C.red, fontSize:9, fontWeight:800, padding:"2px 6px", borderRadius:99, whiteSpace:"nowrap", flexShrink:0 }}>ATRASADO</span>
+                        )}
+                      </div>
+
+                      {/* Cliente */}
+                      {cliente && (
+                        <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:7 }}>
+                          <div style={{ width:18, height:18, borderRadius:5, background:`linear-gradient(135deg,${C.teal}50,${C.accentGlow}50)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, color:C.teal, flexShrink:0 }}>
+                            {cliente.name.charAt(0)}
+                          </div>
+                          <span style={{ color:C.teal, fontSize:12, fontWeight:600 }}>{cliente.name}</span>
+                        </div>
+                      )}
+
+                      {/* Tag */}
+                      {d.tag && (
+                        <div style={{ marginBottom:7 }}>
+                          <span style={{ background:`${C.accent}15`, color:C.accent, fontSize:10, padding:"2px 8px", borderRadius:99, fontWeight:600 }}>{d.tag}</span>
+                        </div>
+                      )}
+
+                      {/* Prazo */}
+                      {d.prazo && (
+                        <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:4 }}>
+                          <span style={{ fontSize:11 }}>📅</span>
+                          <span style={{ color: atrasado ? C.red : diasRestantes !== null && diasRestantes <= 2 ? C.orange : C.muted, fontSize:11, fontWeight: atrasado||diasRestantes<=2 ? 700 : 400 }}>
+                            {atrasado
+                              ? `${Math.abs(diasRestantes)}d atrasado`
+                              : diasRestantes === 0
+                              ? "Vence hoje!"
+                              : diasRestantes === 1
+                              ? "Amanhã"
+                              : d.prazo}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Botões mover */}
+                      <div style={{ display:"flex", gap:4, marginTop:9, paddingTop:8, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
+                        {KANBAN_COLS.filter(k => k !== col).map(k => {
+                          const v = STATUS_DEMANDA[k];
+                          const idx = KANBAN_COLS.indexOf(k);
+                          const cur = KANBAN_COLS.indexOf(col);
+                          const isNext = idx === cur + 1;
+                          if (!isNext && idx !== cur - 1) return null; // só próxima e anterior
+                          return (
+                            <button key={k} onClick={e => { e.stopPropagation(); mover(d.id, k); }}
+                              style={{ background:`${v.color}15`, border:`1px solid ${v.color}30`, borderRadius:6, padding:"3px 8px", color:v.color, fontSize:10, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:3 }}>
+                              {isNext ? "→" : "←"} {v.icon}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Modal detalhe do card */}
+      {modalCard && (() => {
+        const d = demandas.find(x => x.id === modalCard.id) || modalCard;
+        const cliente = getCliente(d.cliente_id);
+        const st = STATUS_DEMANDA[d.status] || STATUS_DEMANDA.triagem;
+        const atrasado = isAtrasado(d);
+        return (
+          <div onClick={()=>setModalCard(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+            <div onClick={e=>e.stopPropagation()} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:"100%", maxWidth:480 }}>
+              {/* Header */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                    <span style={{ background:`${st.color}20`, color:st.color, fontSize:12, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>{st.icon} {st.label}</span>
+                    {atrasado && <span style={{ background:`${C.red}20`, color:C.red, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>ATRASADO</span>}
+                  </div>
+                  <h2 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, margin:0 }}>{d.titulo}</h2>
+                </div>
+                <button onClick={()=>setModalCard(null)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4, marginLeft:8 }}><Ico n="close" s={18}/></button>
+              </div>
+
+              {/* Info */}
+              <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:20 }}>
+                {cliente && (
+                  <div style={{ display:"flex", alignItems:"center", gap:10, background:C.surface, borderRadius:10, padding:"10px 14px" }}>
+                    <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.teal}50,${C.accentGlow}50)`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:C.teal }}>
+                      {cliente.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{ color:C.text, fontWeight:700, fontSize:14 }}>{cliente.name}</div>
+                      <div style={{ color:C.muted, fontSize:12 }}>{cliente.company||"—"}</div>
+                    </div>
+                  </div>
+                )}
+                {d.descricao && (
+                  <div style={{ background:C.surface, borderRadius:10, padding:"12px 14px" }}>
+                    <div style={{ color:C.muted, fontSize:11, marginBottom:4, textTransform:"uppercase", letterSpacing:"0.07em" }}>Descrição</div>
+                    <div style={{ color:C.text, fontSize:13, lineHeight:1.6 }}>{d.descricao}</div>
+                  </div>
+                )}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  {d.prazo && (
+                    <div style={{ background:C.surface, borderRadius:10, padding:"10px 14px" }}>
+                      <div style={{ color:C.muted, fontSize:11, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.07em" }}>Prazo</div>
+                      <div style={{ color:atrasado?C.red:C.text, fontWeight:700, fontSize:14 }}>📅 {d.prazo}</div>
+                    </div>
+                  )}
+                  {d.valor > 0 && (
+                    <div style={{ background:C.surface, borderRadius:10, padding:"10px 14px" }}>
+                      <div style={{ color:C.muted, fontSize:11, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.07em" }}>Valor</div>
+                      <div style={{ color:C.green, fontWeight:700, fontSize:14 }}>R$ {d.valor.toLocaleString("pt-BR")}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Mover para */}
+              <div>
+                <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Mover para</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {KANBAN_COLS.filter(k => k !== d.status).map(k => {
+                    const v = STATUS_DEMANDA[k];
+                    return (
+                      <button key={k} onClick={() => { setDemandas(ds => ds.map(x => x.id===d.id ? {...x,status:k} : x)); setModalCard({...d,status:k}); }}
+                        style={{ background:`${v.color}15`, border:`1px solid ${v.color}40`, borderRadius:9, padding:"8px 14px", color:v.color, fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                        {v.icon} {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2084,7 +2360,8 @@ export default function App() {
   const nav = [
     { id:"dashboard",       label:"Dashboard",        icon:"dashboard", sec:"principal" },
     { id:"leads",           label:"CRM · Leads",       icon:"leads",     sec:"gestao"    },
-    { id:"clientes_fixos",  label:"Clientes Ativos",    icon:"star",      sec:"gestao"    },
+    { id:"clientes_fixos",  label:"Clientes Ativos",   icon:"star",      sec:"gestao"    },
+    { id:"kanban",          label:"Kanban",            icon:"kanban",    sec:"gestao"    },
     { id:"agenda",          label:"Agenda",            icon:"agenda",    sec:"gestao"    },
     { id:"finance",         label:"Financeiro",        icon:"finance",   sec:"gestao"    },
     { id:"timer",           label:"Horas Trabalhadas", icon:"clock",     sec:"gestao"    },
@@ -2173,6 +2450,7 @@ export default function App() {
             </div>
           </div>
           {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView}/>}
+          {view==="kanban"         && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
           {view==="leads"          && <Leads leads={leads} setLeads={setLeads}/>}
           {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
           {view==="pedido"         && <FormularioPedido leads={leads} setDemandas={setDemandas} setTasks={setTasks}/>}
