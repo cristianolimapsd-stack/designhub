@@ -2125,7 +2125,7 @@ function FormularioPedido({ setDemandas, setTasks }) {
             Enviar pedido →
           </button>
         </div>
-        <p style={{ textAlign:"center", color:C.muted, fontSize:12, marginTop:16 }}>Powered by DesignHub</p>
+        <p style={{ textAlign:"center", color:C.muted, fontSize:12, marginTop:16 }}>Powered by FluxioHUB</p>
       </div>
     </div>
   );
@@ -2586,8 +2586,8 @@ export default function App() {
           <div style={{ padding:"17px 13px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:col?"center":"space-between" }}>
             {!col&&(
               <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-                <div style={{ width:30, height:30, borderRadius:8, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:"#fff" }}>D</div>
-                <span style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, letterSpacing:"-0.02em" }}>Design<span style={{ color:C.accent }}>Hub</span></span>
+                <div style={{ width:30, height:30, borderRadius:8, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:"#fff" }}>F</div>
+                <span style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, letterSpacing:"-0.02em" }}>Fluxio<span style={{ color:C.accent }}>HUB</span></span>
               </div>
             )}
             <button onClick={()=>setCol(c=>!c)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="menu" s={15}/></button>
@@ -2632,7 +2632,7 @@ export default function App() {
                 <Ico n="search" s={13} c={C.muted}/>
                 <input placeholder="Buscar..." style={{ background:"none", border:"none", color:C.text, fontSize:13, outline:"none", width:110, fontFamily:"inherit" }}/>
               </div>
-              <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13 }}>D</div>
+              <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13 }}>F</div>
             </div>
           </div>
           {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas}/>}
