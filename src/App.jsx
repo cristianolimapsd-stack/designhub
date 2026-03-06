@@ -281,7 +281,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 22px", marginBottom:22 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
           <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>🗂 Kanban — visão geral</span>
-          <button onClick={()=>setView("kanban")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:600 }}>Abrir Kanban →</button>
+          <button onClick={()=>handleSetView("kanban")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:600 }}>Abrir Kanban →</button>
         </div>
         <div style={{ display:"flex", gap:10 }}>
           {KANBAN_COLS.map(col=>{
@@ -305,7 +305,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
             <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>Horas — últimos 7 dias</span>
-            <button onClick={()=>setView("timer")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:600 }}>Ver histórico →</button>
+            <button onClick={()=>handleSetView("timer")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:600 }}>Ver histórico →</button>
           </div>
           <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:80 }}>
             {last7.map((d,i)=>(
@@ -321,7 +321,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
             <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>Agenda de Hoje</span>
-            <button onClick={()=>setView("agenda")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:600 }}>Ver agenda →</button>
+            <button onClick={()=>handleSetView("agenda")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:600 }}>Ver agenda →</button>
           </div>
           {todT.length===0&&<div style={{ color:C.muted, fontSize:13, padding:"20px 0", textAlign:"center" }}>Nenhuma tarefa para hoje 🎉</div>}
           {todT.slice(0,5).map(t=>(
@@ -2138,7 +2138,7 @@ function FormularioPedido({ setDemandas, setTasks }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // KANBAN
 // ══════════════════════════════════════════════════════════════════════════════
-function Kanban({ demandas, setDemandas, leads }) {
+function Kanban({ demandas, setDemandas, leads, setTasks }) {
   const [dragId,    setDragId]    = useState(null);
   const [dragOver,  setDragOver]  = useState(null);
   const [modalCard, setModalCard] = useState(null); // demanda selecionada
@@ -2316,7 +2316,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                             </button>
                           );
                         })}
-                        <button onClick={e => { e.stopPropagation(); if(window.confirm("Excluir esta demanda?")) setDemandas(ds => ds.filter(x => x.id !== d.id)); }}
+                        <button onClick={e => { e.stopPropagation(); if(window.confirm("Excluir esta demanda?")) { setDemandas(ds => ds.filter(x => x.id !== d.id)); if(d.task_id && setTasks) setTasks(ts => ts.filter(t => t.id !== d.task_id)); } }}
                           style={{ marginLeft:"auto", background:`${C.red}15`, border:`1px solid ${C.red}30`, borderRadius:6, padding:"3px 8px", color:C.red, fontSize:10, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:3 }}>
                           🗑
                         </button>
@@ -2413,7 +2413,16 @@ function Kanban({ demandas, setDemandas, leads }) {
 export default function App() {
   // Detecta rota pública de pedido via hash
   const hashRoute = window.location.hash.startsWith("#pedido/") ? "pedido" : null;
-  const [view, setView] = useState(hashRoute || "dashboard");
+  const [view, setView] = useState(() => {
+    if (hashRoute) return hashRoute;
+    try { return localStorage.getItem("dh_last_view") || "dashboard"; } catch { return "dashboard"; }
+  });
+
+  // Salva a aba atual ao trocar
+  const handleSetView = (v) => {
+    setView(v);
+    try { localStorage.setItem("dh_last_view", v); } catch {}
+  };
 
   // Estado local (sempre funciona, mesmo offline)
   const [leads,        setLeadsLocal]        = useLocalStorage("dh_leads",     initLeads);
@@ -2606,7 +2615,7 @@ export default function App() {
                 {nav.filter(n=>n.sec===sec.id).map(item=>{
                   const atrasados = item.id==="kanban" ? demandas.filter(d=>d.prazo&&d.prazo<new Date().toISOString().split("T")[0]&&d.status!=="finalizado").length : 0;
                   return (
-                  <button key={item.id} onClick={()=>setView(item.id)} title={col?item.label:""} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:col?"10px":"9px 11px", borderRadius:9, background:view===item.id?`${C.accent}16`:"transparent", border:view===item.id?`1px solid ${C.accent}28`:"1px solid transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontWeight:view===item.id?600:400, transition:"all 0.13s", justifyContent:col?"center":"flex-start", marginBottom:1, position:"relative" }}>
+                  <button key={item.id} onClick={()=>handleSetView(item.id)} title={col?item.label:""} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:col?"10px":"9px 11px", borderRadius:9, background:view===item.id?`${C.accent}16`:"transparent", border:view===item.id?`1px solid ${C.accent}28`:"1px solid transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontWeight:view===item.id?600:400, transition:"all 0.13s", justifyContent:col?"center":"flex-start", marginBottom:1, position:"relative" }}>
                     <Ico n={item.icon} s={15} c={view===item.id?C.accent:C.muted}/>
                     {!col&&<span style={{ flex:1, textAlign:"left" }}>{item.label}</span>}
                     {!col&&atrasados>0&&<span style={{ background:C.red, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:99, minWidth:18, textAlign:"center" }}>{atrasados}</span>}
@@ -2643,7 +2652,7 @@ export default function App() {
             </div>
           </div>
           {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas}/>}
-          {view==="kanban"         && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
+          {view==="kanban"         && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads} setTasks={setTasks}/>}
           {view==="leads"          && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
           {view==="pedido"         && <FormularioPedido leads={leads} setDemandas={setDemandas} setTasks={setTasks}/>}
