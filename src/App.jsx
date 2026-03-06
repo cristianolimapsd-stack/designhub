@@ -235,7 +235,7 @@ function MonthPicker({ value, onChange, label }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
-function Dashboard({ leads, tasks, timer, timerHistory, setView }) {
+function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) {
   const today = new Date().toISOString().split("T")[0];
   const totalV = leads.filter(l=>l.status==="fechado").reduce((a,b)=>a+b.value,0);
   const pipeline = leads.filter(l=>!["fechado","perdido"].includes(l.status)).reduce((a,b)=>a+b.value,0);
@@ -281,18 +281,41 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView }) {
       {/* Metrics */}
       <div style={{ display:"flex", gap:14, marginBottom:22, flexWrap:"wrap" }}>
         {[
-          { label:"Receita fechada", value:`R$ ${totalV.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>l.status==="fechado").length} projetos`, accent:C.green },
-          { label:"Em pipeline",     value:`R$ ${pipeline.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>!["fechado","perdido"].includes(l.status)).length} ativos`, accent:C.accent },
-          { label:"Total de leads",  value:leads.length, sub:`${leads.filter(l=>l.status==="novo").length} novos`, accent:C.teal },
-          { label:"Tarefas hoje",    value:`${todT.filter(t=>t.done).length}/${todT.length}`, sub:`${todT.filter(t=>!t.done).length} pendentes`, accent:C.orange },
+          { label:"Receita fechada", value:`R$ ${totalV.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>l.status==="fechado").length} projetos`, accent:C.green, onClick:null },
+          { label:"Em pipeline",     value:`R$ ${pipeline.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>!["fechado","perdido"].includes(l.status)).length} ativos`, accent:C.accent, onClick:null },
+          { label:"Total de leads",  value:leads.length, sub:`${leads.filter(l=>l.status==="novo").length} novos`, accent:C.teal, onClick:null },
+          { label:"Tarefas hoje",    value:`${todT.filter(t=>t.done).length}/${todT.length}`, sub:`${todT.filter(t=>!t.done).length} pendentes`, accent:C.orange, onClick:null },
         ].map(m=>(
-          <div key={m.label} style={{ flex:1, minWidth:160, background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px", position:"relative", overflow:"hidden" }}>
+          <div key={m.label} onClick={m.onClick} style={{ flex:1, minWidth:160, background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px", position:"relative", overflow:"hidden", cursor:m.onClick?"pointer":"default" }}>
             <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${m.accent},transparent)` }}/>
             <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>{m.label}</div>
             <div style={{ color:m.accent, fontSize:26, fontWeight:800, fontFamily:"'Syne',sans-serif" }}>{m.value}</div>
             <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{m.sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* Kanban resumo em tempo real */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 22px", marginBottom:22 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+          <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>🗂 Kanban — visão geral</span>
+          <button onClick={()=>setView("kanban")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:600 }}>Abrir Kanban →</button>
+        </div>
+        <div style={{ display:"flex", gap:10 }}>
+          {KANBAN_COLS.map(col=>{
+            const cfg = STATUS_DEMANDA[col];
+            const n = demandas.filter(d=>d.status===col).length;
+            const atrasados = demandas.filter(d=>d.status===col&&d.prazo&&d.prazo<today).length;
+            return (
+              <div key={col} style={{ flex:1, background:C.surface, border:`1px solid ${n>0?cfg.color+"30":C.border}`, borderRadius:11, padding:"12px 14px", textAlign:"center" }}>
+                <div style={{ fontSize:18, marginBottom:4 }}>{cfg.icon}</div>
+                <div style={{ color:n>0?cfg.color:C.muted, fontWeight:800, fontSize:20, fontFamily:"'Syne',sans-serif" }}>{n}</div>
+                <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{cfg.label}</div>
+                {atrasados>0&&<div style={{ background:`${C.red}20`, color:C.red, fontSize:9, fontWeight:700, padding:"2px 6px", borderRadius:99, marginTop:5 }}>{atrasados} atrasado{atrasados>1?"s":""}</div>}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
@@ -325,6 +348,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView }) {
               <span style={{ fontFamily:"monospace", fontSize:12, color:C.muted, width:42, flexShrink:0 }}>{t.time}</span>
               <span style={{ fontSize:14, flexShrink:0 }}>{TYPE[t.type].icon}</span>
               <span style={{ color:t.done?C.muted:C.text, fontSize:13, flex:1, textDecoration:t.done?"line-through":"none" }}>{t.title}</span>
+              {t.type==="entrega"&&<span style={{ background:`${C.teal}15`, color:C.teal, fontSize:10, padding:"1px 7px", borderRadius:99, fontWeight:600, flexShrink:0 }}>demanda</span>}
             </div>
           ))}
         </div>
@@ -2414,12 +2438,16 @@ export default function App() {
             {secs.map(sec=>(
               <div key={sec.id}>
                 {!col&&<div style={{ color:C.muted, fontSize:9, textTransform:"uppercase", letterSpacing:"0.12em", fontWeight:700, padding:"10px 9px 5px" }}>{sec.label}</div>}
-                {nav.filter(n=>n.sec===sec.id).map(item=>(
-                  <button key={item.id} onClick={()=>setView(item.id)} title={col?item.label:""} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:col?"10px":"9px 11px", borderRadius:9, background:view===item.id?`${C.accent}16`:"transparent", border:view===item.id?`1px solid ${C.accent}28`:"1px solid transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontWeight:view===item.id?600:400, transition:"all 0.13s", justifyContent:col?"center":"flex-start", marginBottom:1 }}>
+                {nav.filter(n=>n.sec===sec.id).map(item=>{
+                  const atrasados = item.id==="kanban" ? demandas.filter(d=>d.prazo&&d.prazo<new Date().toISOString().split("T")[0]&&d.status!=="finalizado").length : 0;
+                  return (
+                  <button key={item.id} onClick={()=>setView(item.id)} title={col?item.label:""} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:col?"10px":"9px 11px", borderRadius:9, background:view===item.id?`${C.accent}16`:"transparent", border:view===item.id?`1px solid ${C.accent}28`:"1px solid transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontWeight:view===item.id?600:400, transition:"all 0.13s", justifyContent:col?"center":"flex-start", marginBottom:1, position:"relative" }}>
                     <Ico n={item.icon} s={15} c={view===item.id?C.accent:C.muted}/>
-                    {!col&&<span>{item.label}</span>}
+                    {!col&&<span style={{ flex:1 }}>{item.label}</span>}
+                    {atrasados>0&&<span style={{ background:C.red, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:99, minWidth:18, textAlign:"center" }}>{atrasados}</span>}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             ))}
           </nav>
@@ -2449,7 +2477,7 @@ export default function App() {
               <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13 }}>D</div>
             </div>
           </div>
-          {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView}/>}
+          {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas}/>}
           {view==="kanban"         && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
           {view==="leads"          && <Leads leads={leads} setLeads={setLeads}/>}
           {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
