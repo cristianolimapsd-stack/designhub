@@ -2078,7 +2078,12 @@ function BriefingInline({ clienteId, value, onSave }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function FormularioPedido({ setDemandas, setTasks }) {
   // Detecta cliente pelo hash: #pedido/slug/id OU #pedido/id
-  const hash = window.location.hash;
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const matchLong = hash.match(/#pedido\/[^/]+\/(\d+)/);
   const matchShort = hash.match(/#pedido\/(\d+)$/);
   const clienteId = matchLong ? parseInt(matchLong[1]) : matchShort ? parseInt(matchShort[1]) : null;
@@ -2600,7 +2605,12 @@ function SettingsModal({ open, onClose, onLogout }) {
 // PORTAL DO CLIENTE
 // ══════════════════════════════════════════════════════════════════════════════
 function PortalCliente() {
-  const hash = window.location.hash;
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const match = hash.match(/#portal\/[^/]+\/(\d+)/);
   const clienteId = match ? parseInt(match[1]) : null;
 
@@ -2846,10 +2856,16 @@ function PortalCliente() {
 }
 
 export default function App() {
-  // Rotas públicas via hash (detectadas antes dos hooks mas renderizadas depois)
-  const hash = window.location.hash;
-  const isPortal = hash.startsWith("#portal/");
-  const isPedido = hash.startsWith("#pedido/");
+  // ── Hash reativo — detecta mudanças de rota ───────────────────────────────
+  const [currentHash, setCurrentHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const onHash = () => setCurrentHash(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const isPortal = currentHash.startsWith("#portal/");
+  const isPedido = currentHash.startsWith("#pedido/");
 
   // ⚠️ Todos os hooks ANTES de qualquer early return (regra do React)
   const [loggedIn, setLoggedIn] = useState(() => !!localStorage.getItem("dh_session"));
