@@ -933,156 +933,314 @@ function Agenda({ tasks, setTasks }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // FINANCEIRO — REFATORADO + FILTRO POR MÊS
 // ══════════════════════════════════════════════════════════════════════════════
-function Finance({ leads }) {
+// ══════════════════════════════════════════════════════════════════════════════
+// FINANCEIRO INTELIGENTE + GAMIFICAÇÃO
+// ══════════════════════════════════════════════════════════════════════════════
+function Finance({ leads, demandas, timerHistory }) {
   const [selMonth, setSelMonth] = useState(NOW_MONTH);
+  const [meta, setMeta] = useLocalStorage("dh_meta_mensal", 5000);
+  const [editMeta, setEditMeta] = useState(false);
+  const [metaInput, setMetaInput] = useState(String(meta));
 
-  // All unique months with data
-  const allMonths = [...new Set(leads.map(l=>l.date.slice(0,7)))].sort((a,b)=>b.localeCompare(a));
+  const today = new Date().toISOString().split("T")[0];
 
-  const moLeads = leads.filter(l => l.date.startsWith(selMonth));
-  const allLeads = leads;
+  // ── Receita real: demandas finalizadas ──────────────────────────────────────
+  const receitaMes = (monthKey) =>
+    demandas.filter(d => d.status === "finalizado" && d.data_criacao?.startsWith(monthKey))
+            .reduce((a,b) => a + (parseFloat(b.valor)||0), 0);
 
-  const moFechado  = moLeads.filter(l=>l.status==="fechado");
-  const moPipeline = moLeads.filter(l=>!["fechado","perdido"].includes(l.status));
-  const moPerdido  = moLeads.filter(l=>l.status==="perdido");
-  const moReceita  = moFechado.reduce((a,b)=>a+b.value,0);
-  const moPipelineV= moPipeline.reduce((a,b)=>a+b.value,0);
-  const moPerdidoV = moPerdido.reduce((a,b)=>a+b.value,0);
+  const moReceita   = receitaMes(selMonth);
+  const moJobs      = demandas.filter(d => d.status==="finalizado" && d.data_criacao?.startsWith(selMonth));
+  const moEmAndamento = demandas.filter(d => d.status !== "finalizado" && d.data_criacao?.startsWith(selMonth));
 
-  // Monthly totals for chart (last 8 months)
+  // Mês anterior
+  const [yr, mo] = selMonth.split("-").map(Number);
+  const prevDate  = new Date(yr, mo-2, 1);
+  const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,"0")}`;
+  const prevReceita = receitaMes(prevMonth);
+  const diffPct = prevReceita > 0 ? Math.round((moReceita - prevReceita) / prevReceita * 100) : null;
+
+  // ── Gráfico 8 meses ─────────────────────────────────────────────────────────
   const chartMonths = Array.from({length:8},(_,i)=>{
     const d = new Date(NOW_YEAR, NOW_MO - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    const val = leads.filter(l=>l.date.startsWith(key)&&l.status==="fechado").reduce((a,b)=>a+b.value,0);
-    return { key, label:MONTHS_SHORT[d.getMonth()], val };
+    const val = receitaMes(key);
+    const jobs = demandas.filter(d2 => d2.status==="finalizado" && d2.data_criacao?.startsWith(key)).length;
+    return { key, label:MONTHS_SHORT[d.getMonth()], val, jobs };
   }).reverse();
-  const maxChart = Math.max(...chartMonths.map(m=>m.val), 1);
+  const maxChart = Math.max(...chartMonths.map(m=>m.val), meta, 1);
 
-  // Status breakdown for selected month
-  const breakdown = Object.entries(STATUS).map(([status,cfg])=>{
-    const grp = moLeads.filter(l=>l.status===status);
-    return { status, label:cfg.label, color:cfg.color, count:grp.length, value:grp.reduce((a,b)=>a+b.value,0) };
-  }).filter(b=>b.count>0);
+  // ── Ranking clientes ────────────────────────────────────────────────────────
+  const clientes = leads.filter(l => l.categoria === "cliente_fixo");
+  const rankClientes = clientes.map(c => ({
+    ...c,
+    total: demandas.filter(d => d.cliente_id===c.id && d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0),
+    jobs:  demandas.filter(d => d.cliente_id===c.id && d.status==="finalizado").length,
+  })).sort((a,b) => b.total - a.total);
 
-  const moTotal = moLeads.reduce((a,b)=>a+b.value,0);
+  // ── Ranking por tag/serviço ─────────────────────────────────────────────────
+  const tagMap = {};
+  demandas.filter(d=>d.status==="finalizado").forEach(d=>{
+    const tag = d.tag || "Sem tag";
+    if (!tagMap[tag]) tagMap[tag] = { total:0, count:0 };
+    tagMap[tag].total += parseFloat(d.valor)||0;
+    tagMap[tag].count++;
+  });
+  const rankTags = Object.entries(tagMap).map(([tag,v])=>({tag,...v})).sort((a,b)=>b.total-a.total);
+
+  // ── Meta progress ───────────────────────────────────────────────────────────
+  const metaPct = meta > 0 ? Math.min(100, Math.round(moReceita / meta * 100)) : 0;
+  const metaBatida = moReceita >= meta;
+
+  // ── GAMIFICAÇÃO ─────────────────────────────────────────────────────────────
+  const totalJobs = demandas.filter(d=>d.status==="finalizado").length;
+  const totalReceita = demandas.filter(d=>d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
+
+  // XP e Nível
+  const xp = Math.floor(totalReceita / 100) + (totalJobs * 50);
+  const niveis = [
+    { nome:"Iniciante",     min:0,     max:500,   icon:"🌱", cor:C.muted   },
+    { nome:"Freelancer",    min:500,   max:2000,  icon:"⚡", cor:C.yellow  },
+    { nome:"Profissional",  min:2000,  max:5000,  icon:"🚀", cor:C.accent  },
+    { nome:"Expert",        min:5000,  max:15000, icon:"💎", cor:C.teal    },
+    { nome:"Lenda",         min:15000, max:99999, icon:"🏆", cor:C.orange  },
+  ];
+  const nivel = niveis.findLast(n => xp >= n.min) || niveis[0];
+  const nextNivel = niveis[niveis.indexOf(nivel)+1];
+  const xpPct = nextNivel ? Math.round((xp - nivel.min) / (nextNivel.min - nivel.min) * 100) : 100;
+
+  // Streak de dias trabalhados (timer)
+  let streak = 0;
+  const d = new Date(); d.setDate(d.getDate()-1);
+  while (true) {
+    const key = d.toISOString().split("T")[0];
+    if (timerHistory.find(h=>h.date===key&&h.seconds>3600)) { streak++; d.setDate(d.getDate()-1); }
+    else break;
+    if (streak > 365) break;
+  }
+
+  // Conquistas
+  const conquistas = [
+    { id:"first_job",   icon:"🎯", nome:"Primeiro Job",     desc:"Complete seu primeiro job",           ok: totalJobs >= 1 },
+    { id:"jobs5",       icon:"⚡", nome:"5 Jobs",           desc:"Complete 5 jobs finalizados",         ok: totalJobs >= 5 },
+    { id:"jobs10",      icon:"🔥", nome:"10 Jobs",          desc:"Complete 10 jobs finalizados",        ok: totalJobs >= 10 },
+    { id:"jobs25",      icon:"💪", nome:"25 Jobs",          desc:"Complete 25 jobs finalizados",        ok: totalJobs >= 25 },
+    { id:"r5k",         icon:"💰", nome:"R$ 5k",            desc:"Acumule R$ 5.000 em receita",        ok: totalReceita >= 5000 },
+    { id:"r10k",        icon:"💎", nome:"R$ 10k",           desc:"Acumule R$ 10.000 em receita",       ok: totalReceita >= 10000 },
+    { id:"r50k",        icon:"🏆", nome:"R$ 50k",           desc:"Acumule R$ 50.000 em receita",       ok: totalReceita >= 50000 },
+    { id:"meta",        icon:"🎉", nome:"Meta batida!",      desc:"Bata a meta mensal de receita",       ok: metaBatida },
+    { id:"streak3",     icon:"🔁", nome:"3 dias seguidos",   desc:"Trabalhe 3 dias seguidos (1h+)",      ok: streak >= 3 },
+    { id:"streak7",     icon:"🗓", nome:"Semana completa",   desc:"7 dias seguidos de trabalho",         ok: streak >= 7 },
+    { id:"clientes3",   icon:"⭐", nome:"3 clientes ativos", desc:"Tenha 3 clientes ativos",             ok: clientes.length >= 3 },
+  ];
+
+  // Ranking melhores meses (todos os meses com receita)
+  const allMonthsRank = [...new Set(demandas.filter(d=>d.status==="finalizado").map(d=>d.data_criacao?.slice(0,7)).filter(Boolean))]
+    .map(key => ({ key, label:`${MONTHS_SHORT[parseInt(key.split("-")[1])-1]}/${key.split("-")[0]}`, val: receitaMes(key) }))
+    .sort((a,b) => b.val - a.val).slice(0,5);
 
   return (
-    <div style={{ padding:"28px 32px", maxWidth:960 }}>
+    <div style={{ padding:"28px 32px", height:"calc(100vh - 54px)", overflowY:"auto" }}>
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
         <div>
-          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>Financeiro</h1>
-          <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>Receita e pipeline por mês</p>
+          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>💰 Financeiro</h1>
+          <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>Receita real das demandas finalizadas</p>
         </div>
         <MonthPicker value={selMonth} onChange={setSelMonth} label="Mês:"/>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:24 }}>
-        {[
-          { label:"Receita Fechada",     value:`R$ ${moReceita.toLocaleString("pt-BR")}`,   sub:`${moFechado.length} projeto${moFechado.length!==1?"s":""}`, accent:C.green },
-          { label:"Pipeline Potencial",  value:`R$ ${moPipelineV.toLocaleString("pt-BR")}`, sub:`${moPipeline.length} lead${moPipeline.length!==1?"s":""}`, accent:C.accent },
-          { label:"Oportunidades Perdidas", value:`R$ ${moPerdidoV.toLocaleString("pt-BR")}`, sub:`${moPerdido.length} perdido${moPerdido.length!==1?"s":""}`, accent:C.red },
-        ].map(m=>(
-          <div key={m.label} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px", position:"relative", overflow:"hidden" }}>
-            <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${m.accent},transparent)` }}/>
-            <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>{m.label}</div>
-            <div style={{ color:m.accent, fontSize:24, fontWeight:800, fontFamily:"'Syne',sans-serif" }}>{m.value}</div>
-            <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{m.sub}</div>
+      {/* ── NÍVEL + XP ── */}
+      <div style={{ background:`linear-gradient(135deg,${nivel.cor}15,${C.card})`, border:`1px solid ${nivel.cor}30`, borderRadius:16, padding:"20px 24px", marginBottom:20, display:"flex", alignItems:"center", gap:20 }}>
+        <div style={{ width:60, height:60, borderRadius:16, background:`${nivel.cor}25`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, flexShrink:0 }}>{nivel.icon}</div>
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+            <div>
+              <span style={{ color:nivel.cor, fontWeight:800, fontSize:18, fontFamily:"'Syne',sans-serif" }}>{nivel.nome}</span>
+              <span style={{ color:C.muted, fontSize:13, marginLeft:10 }}>{xp.toLocaleString("pt-BR")} XP</span>
+            </div>
+            {nextNivel && <span style={{ color:C.muted, fontSize:12 }}>Próximo: {nextNivel.icon} {nextNivel.nome} ({(nextNivel.min - xp).toLocaleString("pt-BR")} XP)</span>}
           </div>
-        ))}
+          <div style={{ height:8, background:C.surface, borderRadius:99 }}>
+            <div style={{ height:"100%", width:`${xpPct}%`, background:`linear-gradient(90deg,${nivel.cor},${nivel.cor}99)`, borderRadius:99, transition:"width 0.5s", boxShadow:`0 0 10px ${nivel.cor}50` }}/>
+          </div>
+          <div style={{ display:"flex", gap:20, marginTop:8 }}>
+            <span style={{ color:C.muted, fontSize:12 }}>🏅 {totalJobs} jobs finalizados</span>
+            <span style={{ color:C.muted, fontSize:12 }}>💰 R$ {totalReceita.toLocaleString("pt-BR")} total</span>
+            <span style={{ color:C.muted, fontSize:12 }}>🔥 {streak} dias de streak</span>
+          </div>
+        </div>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 320px", gap:18, marginBottom:18 }}>
-        {/* Bar Chart */}
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"22px 24px" }}>
-          <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:18 }}>Receita fechada — últimos 8 meses</span>
-          <div style={{ display:"flex", alignItems:"flex-end", gap:10, height:130 }}>
+      {/* ── META MENSAL ── */}
+      <div style={{ background:metaBatida?`linear-gradient(135deg,${C.green}15,${C.card})`:`${C.card}`, border:`1px solid ${metaBatida?C.green:C.border}`, borderRadius:16, padding:"20px 24px", marginBottom:20 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ color:C.text, fontWeight:700, fontSize:15 }}>🎯 Meta de {MONTHS[mo-1]}</span>
+            {metaBatida && <span style={{ background:`${C.green}20`, color:C.green, fontSize:12, padding:"3px 10px", borderRadius:99, fontWeight:700, animation:"pulse 1s infinite" }}>🎉 META BATIDA!</span>}
+          </div>
+          {editMeta ? (
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <input value={metaInput} onChange={e=>setMetaInput(e.target.value)} type="number"
+                style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 12px", color:C.text, fontSize:13, width:120, outline:"none", fontFamily:"inherit" }}/>
+              <button onClick={()=>{ setMeta(parseFloat(metaInput)||5000); setEditMeta(false); }}
+                style={{ background:`${C.green}20`, border:`1px solid ${C.green}40`, borderRadius:8, padding:"6px 12px", color:C.green, cursor:"pointer", fontSize:12, fontWeight:700 }}>Salvar</button>
+              <button onClick={()=>setEditMeta(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted }}><Ico n="close" s={14}/></button>
+            </div>
+          ) : (
+            <button onClick={()=>{ setMetaInput(String(meta)); setEditMeta(true); }}
+              style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 12px", color:C.muted, cursor:"pointer", fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
+              <Ico n="edit" s={12} c={C.muted}/> Editar meta
+            </button>
+          )}
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
+          <span style={{ color:metaBatida?C.green:C.text, fontWeight:800, fontSize:28, fontFamily:"'Syne',sans-serif" }}>R$ {moReceita.toLocaleString("pt-BR")}</span>
+          <span style={{ color:C.muted, fontSize:14 }}>de R$ {meta.toLocaleString("pt-BR")}</span>
+        </div>
+        <div style={{ height:12, background:C.surface, borderRadius:99, overflow:"hidden" }}>
+          <div style={{ height:"100%", width:`${metaPct}%`, background:metaBatida?`linear-gradient(90deg,${C.green},${C.teal})`:`linear-gradient(90deg,${C.accentGlow},${C.accent})`, borderRadius:99, transition:"width 0.6s", boxShadow:metaBatida?`0 0 14px ${C.green}60`:"none" }}/>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:8 }}>
+          <span style={{ color:C.muted, fontSize:12 }}>{metaPct}% da meta · {moJobs.length} jobs finalizados</span>
+          {diffPct !== null && (
+            <span style={{ color:diffPct>=0?C.green:C.red, fontSize:12, fontWeight:700 }}>
+              {diffPct>=0?"▲":"▼"} {Math.abs(diffPct)}% vs mês anterior
+            </span>
+          )}
+        </div>
+        {/* Jobs em andamento */}
+        {moEmAndamento.length > 0 && (
+          <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${C.border}`, color:C.muted, fontSize:12 }}>
+            🔄 {moEmAndamento.length} demanda{moEmAndamento.length>1?"s":""} em andamento · R$ {moEmAndamento.reduce((a,b)=>a+(parseFloat(b.valor)||0),0).toLocaleString("pt-BR")} potencial
+          </div>
+        )}
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18, marginBottom:20 }}>
+        {/* ── GRÁFICO ── */}
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
+          <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:16 }}>📊 Receita — últimos 8 meses</span>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:130, position:"relative" }}>
+            {/* Linha da meta */}
+            <div style={{ position:"absolute", left:0, right:0, bottom:`${Math.min(100,meta/maxChart*130)}px`, borderTop:`1px dashed ${C.accent}50`, zIndex:1 }}>
+              <span style={{ position:"absolute", right:0, top:-16, color:C.accent, fontSize:9, fontWeight:700 }}>META</span>
+            </div>
             {chartMonths.map((m,i)=>{
-              const isSel = m.key===selMonth;
+              const isSel = m.key === selMonth;
+              const bateu = m.val >= meta;
               return (
-                <div key={i} onClick={()=>setSelMonth(m.key)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:7, cursor:"pointer" }}>
-                  {m.val>0 && <span style={{ color:isSel?C.accent:C.muted, fontSize:10, fontWeight:isSel?700:400 }}>R${(m.val/1000).toFixed(0)}k</span>}
-                  <div style={{ width:"100%", background:m.val>0?(isSel?`linear-gradient(180deg,${C.accent},${C.accentGlow})`:`linear-gradient(180deg,${C.subtle},${C.border})`):C.surface, borderRadius:"6px 6px 0 0", height:`${m.val>0?Math.max(m.val/maxChart*100,6):4}px`, minHeight:m.val>0?8:4, transition:"all 0.3s", boxShadow:isSel?`0 0 14px ${C.accentGlow}50`:"none", border:isSel?`1px solid ${C.accent}40`:"none" }}/>
-                  <span style={{ color:isSel?C.accent:C.muted, fontSize:11, fontWeight:isSel?700:400 }}>{m.label}</span>
+                <div key={i} onClick={()=>setSelMonth(m.key)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:5, cursor:"pointer", zIndex:2 }}>
+                  {m.val>0&&<span style={{ color:isSel?C.accent:C.muted, fontSize:9, fontWeight:700 }}>R${(m.val/1000).toFixed(1)}k</span>}
+                  <div style={{ width:"100%", background:m.val>0?(bateu?`linear-gradient(180deg,${C.green},${C.teal})`:isSel?`linear-gradient(180deg,${C.accent},${C.accentGlow})`:`linear-gradient(180deg,${C.subtle},${C.border})`):C.surface, borderRadius:"6px 6px 0 0", height:`${m.val>0?Math.max(m.val/maxChart*120,6):4}px`, transition:"all 0.3s", boxShadow:isSel?`0 0 12px ${C.accentGlow}50`:"none", border:isSel?`1px solid ${C.accent}40`:"none" }}/>
+                  <span style={{ color:isSel?C.accent:C.muted, fontSize:10, fontWeight:isSel?700:400 }}>{m.label}</span>
+                  {m.jobs>0&&<span style={{ color:C.muted, fontSize:9 }}>{m.jobs}j</span>}
                 </div>
               );
             })}
           </div>
-          <p style={{ color:C.muted, fontSize:11, marginTop:12 }}>Clique em uma barra para filtrar o mês</p>
         </div>
 
-        {/* Breakdown */}
+        {/* ── RANKING MESES ── */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
-          <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:16 }}>
-            Por status · {MONTHS[Number(selMonth.split("-")[1])-1]}
-          </span>
-          {moLeads.length===0 ? (
-            <div style={{ padding:"30px 0", textAlign:"center", color:C.muted, fontSize:13 }}>Sem dados neste mês.</div>
-          ) : (
-            <>
-              {breakdown.map(b=>{
-                const pct = moTotal > 0 ? Math.round(b.value/moTotal*100) : 0;
-                return (
-                  <div key={b.status} style={{ marginBottom:14 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        <div style={{ width:8, height:8, borderRadius:"50%", background:b.color }}/>
-                        <span style={{ color:C.text, fontSize:13 }}>{b.label}</span>
-                        <span style={{ background:`${b.color}18`, color:b.color, fontSize:10, padding:"1px 7px", borderRadius:99, fontWeight:700 }}>{b.count}</span>
-                      </div>
-                      <span style={{ color:C.text, fontSize:13, fontWeight:700 }}>R$ {b.value.toLocaleString("pt-BR")}</span>
-                    </div>
-                    <div style={{ height:5, background:C.surface, borderRadius:99 }}>
-                      <div style={{ height:"100%", width:`${pct}%`, background:b.color, borderRadius:99, opacity:0.8 }}/>
-                    </div>
+          <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:14 }}>🏆 Melhores meses</span>
+          {allMonthsRank.length === 0 ? (
+            <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"30px 0" }}>Ainda sem dados de receita.</div>
+          ) : allMonthsRank.map((m,i)=>{
+            const medals = ["🥇","🥈","🥉","4️⃣","5️⃣"];
+            const pct = Math.round(m.val / allMonthsRank[0].val * 100);
+            return (
+              <div key={m.key} style={{ marginBottom:14 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:16 }}>{medals[i]}</span>
+                    <span style={{ color:C.text, fontSize:13, fontWeight:600 }}>{m.label}</span>
                   </div>
-                );
-              })}
-              <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between" }}>
-                <span style={{ color:C.muted, fontSize:12 }}>Total em carteira</span>
-                <span style={{ color:C.text, fontWeight:800, fontSize:14, fontFamily:"'Syne',sans-serif" }}>R$ {moTotal.toLocaleString("pt-BR")}</span>
+                  <span style={{ color:i===0?C.green:C.text, fontWeight:700, fontSize:14 }}>R$ {m.val.toLocaleString("pt-BR")}</span>
+                </div>
+                <div style={{ height:4, background:C.surface, borderRadius:99 }}>
+                  <div style={{ height:"100%", width:`${pct}%`, background:i===0?`linear-gradient(90deg,${C.green},${C.teal})`:`linear-gradient(90deg,${C.accent},${C.accentGlow})`, borderRadius:99 }}/>
+                </div>
               </div>
-            </>
-          )}
+            );
+          })}
         </div>
       </div>
 
-      {/* Leads table for month */}
-      {moLeads.length > 0 && (
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
-          <div style={{ padding:"12px 18px", background:C.surface, borderBottom:`1px solid ${C.border}` }}>
-            <span style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>
-              Leads de {MONTHS[Number(selMonth.split("-")[1])-1]} {selMonth.split("-")[0]} · {moLeads.length} registros
-            </span>
-          </div>
-          <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr style={{ borderBottom:`1px solid ${C.border}` }}>
-              {["Contato","Empresa","Tag","Valor","Status"].map(h=>(
-                <th key={h} style={{ padding:"11px 18px", textAlign:"left", color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {moLeads.map((l,i)=>(
-                <tr key={l.id} style={{ borderBottom:i<moLeads.length-1?`1px solid ${C.border}`:"none" }}
-                  onMouseEnter={e=>e.currentTarget.style.background=C.cardHover}
-                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                  <td style={{ padding:"12px 18px" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-                      <div style={{ width:30, height:30, borderRadius:8, background:`${C.accentGlow}22`, display:"flex", alignItems:"center", justifyContent:"center", color:C.accent, fontWeight:700, fontSize:12 }}>{l.name.charAt(0)}</div>
-                      <span style={{ color:C.text, fontSize:13, fontWeight:600 }}>{l.name}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding:"12px 18px", color:C.muted, fontSize:13 }}>{l.company}</td>
-                  <td style={{ padding:"12px 18px" }}><span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:600 }}>{l.tag}</span></td>
-                  <td style={{ padding:"12px 18px", color:C.text, fontSize:13, fontWeight:700 }}>R$ {l.value.toLocaleString("pt-BR")}</td>
-                  <td style={{ padding:"12px 18px" }}><span style={{ background:`${STATUS[l.status].color}18`, color:STATUS[l.status].color, fontSize:11, padding:"4px 11px", borderRadius:99, fontWeight:600 }}>{STATUS[l.status].label}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18, marginBottom:20 }}>
+        {/* ── RANKING CLIENTES ── */}
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
+          <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:14 }}>⭐ Ranking de Clientes</span>
+          {rankClientes.length === 0 ? (
+            <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"30px 0" }}>Nenhum cliente ativo ainda.</div>
+          ) : rankClientes.map((c,i)=>{
+            const medals = ["🥇","🥈","🥉"];
+            const maxV = rankClientes[0].total || 1;
+            return (
+              <div key={c.id} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
+                <span style={{ fontSize:i<3?18:13, minWidth:20 }}>{medals[i]||`${i+1}.`}</span>
+                <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.teal}40,${C.accentGlow}40)`, display:"flex", alignItems:"center", justifyContent:"center", color:C.teal, fontWeight:800, fontSize:14, flexShrink:0 }}>
+                  {c.name.charAt(0)}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                    <span style={{ color:C.text, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</span>
+                    <span style={{ color:C.green, fontSize:13, fontWeight:700, flexShrink:0, marginLeft:8 }}>R$ {c.total.toLocaleString("pt-BR")}</span>
+                  </div>
+                  <div style={{ height:4, background:C.surface, borderRadius:99 }}>
+                    <div style={{ height:"100%", width:`${Math.round(c.total/maxV*100)}%`, background:i===0?`linear-gradient(90deg,${C.green},${C.teal})`:`linear-gradient(90deg,${C.teal},${C.accent})`, borderRadius:99 }}/>
+                  </div>
+                  <span style={{ color:C.muted, fontSize:11 }}>{c.jobs} job{c.jobs!==1?"s":""}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+
+        {/* ── RANKING SERVIÇOS ── */}
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
+          <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:14 }}>🏷 Receita por Serviço</span>
+          {rankTags.length === 0 ? (
+            <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"30px 0" }}>Nenhum job finalizado ainda.</div>
+          ) : rankTags.map((t,i)=>{
+            const maxV = rankTags[0].total || 1;
+            const colors = [C.accent, C.teal, C.orange, C.pink, C.green, C.yellow];
+            const cor = colors[i % colors.length];
+            return (
+              <div key={t.tag} style={{ marginBottom:14 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <div style={{ width:8, height:8, borderRadius:"50%", background:cor }}/>
+                    <span style={{ color:C.text, fontSize:13, fontWeight:600 }}>{t.tag}</span>
+                    <span style={{ background:`${cor}18`, color:cor, fontSize:10, padding:"1px 7px", borderRadius:99, fontWeight:700 }}>{t.count}x</span>
+                  </div>
+                  <span style={{ color:C.text, fontSize:13, fontWeight:700 }}>R$ {t.total.toLocaleString("pt-BR")}</span>
+                </div>
+                <div style={{ height:5, background:C.surface, borderRadius:99 }}>
+                  <div style={{ height:"100%", width:`${Math.round(t.total/maxV*100)}%`, background:cor, borderRadius:99, opacity:0.8 }}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── CONQUISTAS ── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 24px" }}>
+        <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:16 }}>🏅 Conquistas — {conquistas.filter(c=>c.ok).length}/{conquistas.length} desbloqueadas</span>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10 }}>
+          {conquistas.map(c=>(
+            <div key={c.id} style={{ background:c.ok?`${C.green}10`:C.surface, border:`1px solid ${c.ok?C.green+"40":C.border}`, borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", gap:10, opacity:c.ok?1:0.45, transition:"all 0.2s" }}>
+              <span style={{ fontSize:24, filter:c.ok?"none":"grayscale(1)" }}>{c.icon}</span>
+              <div>
+                <div style={{ color:c.ok?C.text:C.muted, fontWeight:700, fontSize:13 }}>{c.nome}</div>
+                <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{c.desc}</div>
+              </div>
+              {c.ok && <span style={{ marginLeft:"auto", color:C.green, fontSize:16 }}>✓</span>}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2483,7 +2641,7 @@ export default function App() {
           {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
           {view==="pedido"         && <FormularioPedido leads={leads} setDemandas={setDemandas} setTasks={setTasks}/>}
           {view==="agenda"         && <Agenda tasks={tasks} setTasks={setTasks}/>}
-          {view==="finance"        && <Finance leads={leads}/>}
+          {view==="finance"        && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory}/>}
           {view==="timer"          && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
           {view==="portfolio"      && <Portfolio items={portfolio} setItems={setPortfolio}/>}
           {view==="notes"          && <Notes notes={notes} setNotes={setNotes}/>}
