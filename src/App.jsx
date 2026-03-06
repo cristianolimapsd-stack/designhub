@@ -875,6 +875,17 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
     </div>
   );
 
+  const [listFilter, setListFilter] = useState("todos"); // todos | hoje | semana | atrasadas
+  const today2 = new Date().toISOString().split("T")[0];
+  const weekEnd = new Date(Date.now()+7*86400000).toISOString().split("T")[0];
+
+  const filteredTasks = sorted.filter(t => {
+    if (listFilter==="hoje") return t.date===today2;
+    if (listFilter==="semana") return t.date>=today2 && t.date<=weekEnd;
+    if (listFilter==="atrasadas") return t.date<today2 && !t.done;
+    return true;
+  });
+
   return (
     <div style={{ padding:"28px 32px" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
@@ -889,6 +900,13 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
       </div>
       {vm==="list" ? (
         <div style={{ maxWidth:820 }}>
+          <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+            {[{v:"todos",l:"Todos",c:C.muted},{v:"hoje",l:"Hoje",c:C.accent},{v:"semana",l:"Esta semana",c:C.teal},{v:"atrasadas",l:"Atrasadas",c:C.red}].map(f=>(
+              <button key={f.v} onClick={()=>setListFilter(f.v)} style={{ background:listFilter===f.v?`${f.c}20`:C.card, border:`1px solid ${listFilter===f.v?f.c:C.border}`, borderRadius:8, padding:"6px 14px", color:listFilter===f.v?f.c:C.muted, cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"inherit" }}>
+                {f.l} {f.v!=="todos"&&<span style={{ opacity:0.7, fontSize:11 }}>({(f.v==="hoje"?sorted.filter(t=>t.date===today2):f.v==="semana"?sorted.filter(t=>t.date>=today2&&t.date<=weekEnd):sorted.filter(t=>t.date<today2&&!t.done)).length})</span>}
+              </button>
+            ))}
+          </div>
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"13px 18px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ color:C.text, fontSize:13, fontWeight:600 }}>Progresso geral</span>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -899,8 +917,8 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
             </div>
           </div>
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
-            {sorted.length===0&&<div style={{ padding:40, textAlign:"center", color:C.muted }}>Sem tarefas. 🎉</div>}
-            {sorted.map(t=><TaskRow key={t.id} t={t}/>)}
+            {filteredTasks.length===0&&<div style={{ padding:40, textAlign:"center", color:C.muted }}>Sem tarefas neste filtro. 🎉</div>}
+            {filteredTasks.map(t=><TaskRow key={t.id} t={t}/>)}
           </div>
         </div>
       ) : (
@@ -1600,6 +1618,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
   // Link público do formulário de pedidos
   const slug = sel ? sel.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"") : "";
   const linkPedido = sel ? `${window.location.origin}/#pedido/${slug}/${sel.id}` : "";
+  const linkPortal = sel ? `${window.location.origin}/#portal/${slug}/${sel.id}` : "";
 
   const NotesSave = ({ clienteId, value }) => {
     const [txt, setTxt] = useState(value||"");
@@ -1790,10 +1809,15 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                         </div>
                         <button onClick={()=>navigator.clipboard.writeText(linkPedido)}
                           style={{ background:`${C.accent}20`, border:`1px solid ${C.accent}40`, borderRadius:8, padding:"8px 12px", color:C.accent, cursor:"pointer", fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>
-                          Copiar link
+                          Copiar link pedido
+                        </button>
+                        <button onClick={()=>{navigator.clipboard.writeText(linkPortal);}} style={{ background:`${C.teal}20`, border:`1px solid ${C.teal}40`, borderRadius:8, padding:"8px 12px", color:C.teal, cursor:"pointer", fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>
+                          Copiar link portal
                         </button>
                       </div>
-                      <div style={{ color:C.muted, fontSize:11, marginTop:6 }}>Envie esse link para o cliente preencher pedidos. Eles cairão direto na aba Demandas.</div>
+                      <div style={{ color:C.muted, fontSize:11, marginTop:6 }}>
+                        <strong style={{color:C.accent}}>Pedido:</strong> cliente faz pedidos · <strong style={{color:C.teal}}>Portal:</strong> cliente vê status de todas as demandas
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2456,11 +2480,382 @@ function Kanban({ demandas, setDemandas, leads, setTasks }) {
 }
 
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════════════════════════════════════════
+const DEFAULT_PASS = "fluxio2024";
+function hashPass(p) { let h=0; for(let i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h|=0;} return String(h); }
+
+function LoginScreen({ onLogin }) {
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [firstTime] = useState(() => !localStorage.getItem("dh_pass_hash"));
+
+  const tryLogin = () => {
+    const stored = localStorage.getItem("dh_pass_hash") || hashPass(DEFAULT_PASS);
+    if (hashPass(pass) === stored) {
+      localStorage.setItem("dh_pass_hash", stored);
+      localStorage.setItem("dh_session", "1");
+      onLogin();
+    } else {
+      setErr(true);
+      setTimeout(() => setErr(false), 2000);
+    }
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;}`}</style>
+      <div style={{ width:"100%", maxWidth:400 }}>
+        <div style={{ textAlign:"center", marginBottom:36 }}>
+          <div style={{ width:64, height:64, borderRadius:18, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:28, color:"#fff", boxShadow:`0 8px 30px ${C.accentGlow}50` }}>F</div>
+          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>FluxioHUB</h1>
+          <p style={{ color:C.muted, fontSize:14 }}>Área restrita · designer</p>
+        </div>
+        <div style={{ background:C.card, border:`1px solid ${err?C.red:C.border}`, borderRadius:18, padding:28, transition:"border-color 0.2s", boxShadow:`0 20px 60px rgba(0,0,0,0.4)` }}>
+          {firstTime && (
+            <div style={{ background:`${C.yellow}15`, border:`1px solid ${C.yellow}30`, borderRadius:10, padding:"10px 14px", marginBottom:20, fontSize:12, color:C.yellow, lineHeight:1.6 }}>
+              <strong>Primeiro acesso!</strong> Senha padrão: <code style={{ background:`${C.yellow}20`, padding:"1px 6px", borderRadius:4 }}>{DEFAULT_PASS}</code><br/>
+              Você pode alterá-la nas configurações após entrar.
+            </div>
+          )}
+          <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>Senha</label>
+          <div style={{ position:"relative", marginBottom:20 }}>
+            <input
+              type={showPass?"text":"password"}
+              value={pass}
+              onChange={e=>{setPass(e.target.value);setErr(false);}}
+              onKeyDown={e=>e.key==="Enter"&&tryLogin()}
+              autoFocus
+              placeholder="Digite sua senha..."
+              style={{ background:C.surface, border:`1px solid ${err?C.red:C.border}`, borderRadius:10, padding:"12px 44px 12px 14px", color:C.text, fontSize:14, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", transition:"border-color 0.2s" }}
+            />
+            <button onClick={()=>setShowPass(s=>!s)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:C.muted, padding:0, fontSize:16 }}>
+              {showPass?"🙈":"👁"}
+            </button>
+          </div>
+          {err && <div style={{ color:C.red, fontSize:12, marginBottom:14, textAlign:"center" }}>Senha incorreta. Tente novamente.</div>}
+          <button onClick={tryLogin} style={{ width:"100%", background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:11, padding:"13px", color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"'Syne',sans-serif", boxShadow:`0 4px 20px ${C.accentGlow}40` }}>
+            Entrar →
+          </button>
+        </div>
+        <p style={{ textAlign:"center", color:C.muted, fontSize:11, marginTop:18 }}>FluxioHUB · área do designer</p>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SETTINGS MODAL
+// ══════════════════════════════════════════════════════════════════════════════
+function SettingsModal({ open, onClose, onLogout }) {
+  const [oldPass, setOldPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [msg, setMsg] = useState(null);
+
+  const changePass = () => {
+    const stored = localStorage.getItem("dh_pass_hash") || hashPass(DEFAULT_PASS);
+    if (hashPass(oldPass) !== stored) { setMsg({type:"err", text:"Senha atual incorreta."}); return; }
+    if (newPass.length < 4) { setMsg({type:"err", text:"Nova senha deve ter ao menos 4 caracteres."}); return; }
+    if (newPass !== confirm) { setMsg({type:"err", text:"As senhas não conferem."}); return; }
+    localStorage.setItem("dh_pass_hash", hashPass(newPass));
+    setMsg({type:"ok", text:"Senha alterada com sucesso!"});
+    setOldPass(""); setNewPass(""); setConfirm("");
+    setTimeout(() => setMsg(null), 3000);
+  };
+
+  if (!open) return null;
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.78)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, backdropFilter:"blur(6px)" }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:420, maxWidth:"95vw", boxShadow:"0 30px 70px rgba(0,0,0,0.6)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
+          <span style={{ color:C.text, fontWeight:700, fontSize:17, fontFamily:"'Syne',sans-serif" }}>⚙️ Configurações</span>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="close" s={18}/></button>
+        </div>
+
+        <div style={{ marginBottom:22 }}>
+          <div style={{ color:C.text, fontWeight:700, fontSize:14, marginBottom:14 }}>🔒 Alterar senha</div>
+          <Field label="Senha atual" value={oldPass} onChange={setOldPass} type="password"/>
+          <Field label="Nova senha" value={newPass} onChange={setNewPass} type="password"/>
+          <Field label="Confirmar nova senha" value={confirm} onChange={setConfirm} type="password"/>
+          {msg && <div style={{ background:msg.type==="ok"?`${C.green}15`:`${C.red}15`, border:`1px solid ${msg.type==="ok"?C.green:C.red}30`, borderRadius:8, padding:"8px 12px", color:msg.type==="ok"?C.green:C.red, fontSize:12, marginBottom:12 }}>{msg.text}</div>}
+          <button onClick={changePass} style={{ width:"100%", background:`${C.accent}20`, border:`1px solid ${C.accent}40`, borderRadius:9, padding:"10px", color:C.accent, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Salvar nova senha</button>
+        </div>
+
+        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:18 }}>
+          <button onClick={()=>{localStorage.removeItem("dh_session");onLogout();}} style={{ width:"100%", background:`${C.red}15`, border:`1px solid ${C.red}30`, borderRadius:9, padding:"10px", color:C.red, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>
+            <Ico n="close" s={14} c={C.red}/> Sair da conta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PORTAL DO CLIENTE
+// ══════════════════════════════════════════════════════════════════════════════
+function PortalCliente() {
+  const hash = window.location.hash;
+  const match = hash.match(/#portal\/[^/]+\/(\d+)/);
+  const clienteId = match ? parseInt(match[1]) : null;
+
+  const [cliente, setCliente] = useState(null);
+  const [demandas, setDemandas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("demandas");
+
+  useEffect(() => {
+    if (!clienteId) { setLoading(false); return; }
+    async function load() {
+      try {
+        if (dbReady) {
+          const [cR, dR] = await Promise.all([
+            supabase.from("leads").select("*").eq("id", clienteId).single(),
+            supabase.from("demandas").select("*").eq("cliente_id", clienteId),
+          ]);
+          setCliente(cR.data || null);
+          setDemandas(dR.data || []);
+        }
+      } catch(e) { setCliente(null); }
+      finally { setLoading(false); }
+    }
+    load();
+  }, [clienteId]);
+
+  const parseCores = (str) => {
+    if (!str) return [];
+    return str.split(",").map(s=>s.trim()).filter(Boolean).map(s=>{
+      const hex = s.match(/#[0-9a-fA-F]{3,6}/)?.[0];
+      const nome = s.replace(/#[0-9a-fA-F]{3,6}/,"").trim();
+      return { hex, nome: nome||hex||s };
+    });
+  };
+
+  const linkPedido = clienteId ? `${window.location.origin}/#pedido/${clienteId}` : "";
+
+  if (loading) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;}`}</style>
+      <div style={{ color:C.muted }}>Carregando...</div>
+    </div>
+  );
+
+  if (!cliente) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};}`}</style>
+      <div style={{ textAlign:"center", color:C.muted }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>❌</div>
+        <div style={{ fontSize:16, color:C.text, marginBottom:8 }}>Link inválido.</div>
+        <div style={{ fontSize:13 }}>Verifique o link com seu designer.</div>
+      </div>
+    </div>
+  );
+
+  const cores = parseCores(cliente.cores);
+  const demandasAtivas = demandas.filter(d=>d.status!=="finalizado");
+  const demandasFeitas = demandas.filter(d=>d.status==="finalizado");
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:${C.surface};}::-webkit-scrollbar-thumb{background:#334155;border-radius:2px;}`}</style>
+
+      {/* Header */}
+      <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"16px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:38, height:38, borderRadius:11, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, color:"#fff" }}>F</div>
+          <div>
+            <div style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15 }}>FluxioHUB</div>
+            <div style={{ color:C.muted, fontSize:11 }}>Portal do Cliente</div>
+          </div>
+        </div>
+        <a href={linkPedido} style={{ background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:10, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", textDecoration:"none", display:"flex", alignItems:"center", gap:6, boxShadow:`0 4px 14px ${C.accentGlow}40` }}>
+          + Novo Pedido
+        </a>
+      </div>
+
+      <div style={{ maxWidth:800, margin:"0 auto", padding:"28px 20px" }}>
+        {/* Profile card */}
+        <div style={{ background:`linear-gradient(135deg,${C.accentGlow}18,${C.card})`, border:`1px solid ${C.accent}30`, borderRadius:18, padding:"24px 28px", marginBottom:24, display:"flex", alignItems:"center", gap:20 }}>
+          <div style={{ width:64, height:64, borderRadius:18, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:26, flexShrink:0 }}>
+            {cliente.name.charAt(0)}
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22, marginBottom:4 }}>{cliente.name}</div>
+            <div style={{ color:C.muted, fontSize:14, marginBottom:8 }}>{cliente.company}</div>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {cliente.email && <span style={{ background:C.surface, color:C.muted, fontSize:12, padding:"3px 10px", borderRadius:99, border:`1px solid ${C.border}` }}>✉️ {cliente.email}</span>}
+              {cliente.telefone && <span style={{ background:C.surface, color:C.muted, fontSize:12, padding:"3px 10px", borderRadius:99, border:`1px solid ${C.border}` }}>📱 {cliente.telefone}</span>}
+              {cliente.tag && <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:12, padding:"3px 10px", borderRadius:99, fontWeight:600 }}>{cliente.tag}</span>}
+            </div>
+          </div>
+          <div style={{ textAlign:"center", flexShrink:0 }}>
+            <div style={{ color:C.accent, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:28 }}>{demandas.length}</div>
+            <div style={{ color:C.muted, fontSize:11 }}>demandas total</div>
+            <div style={{ color:C.green, fontSize:12, fontWeight:700, marginTop:4 }}>{demandasFeitas.length} concluídas</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display:"flex", gap:4, background:C.surface, borderRadius:11, padding:3, border:`1px solid ${C.border}`, marginBottom:22, width:"fit-content" }}>
+          {[
+            {id:"demandas", label:`📋 Demandas (${demandasAtivas.length})`},
+            {id:"historico", label:`✅ Concluídas (${demandasFeitas.length})`},
+            {id:"marca", label:"🎨 Minha Marca"},
+          ].map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{ background:tab===t.id?C.card:"transparent", border:tab===t.id?`1px solid ${C.border}`:"1px solid transparent", borderRadius:8, padding:"7px 14px", color:tab===t.id?C.text:C.muted, cursor:"pointer", fontSize:13, fontWeight:tab===t.id?600:400, transition:"all 0.13s", fontFamily:"inherit" }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab: Demandas ativas */}
+        {tab==="demandas" && (
+          <div>
+            {demandasAtivas.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"60px 0", color:C.muted }}>
+                <div style={{ fontSize:40, marginBottom:12 }}>🎉</div>
+                <div style={{ fontSize:16, color:C.text, marginBottom:6 }}>Tudo em dia!</div>
+                <div style={{ fontSize:13 }}>Nenhuma demanda em andamento.</div>
+                <a href={linkPedido} style={{ display:"inline-block", marginTop:20, background:`${C.accent}20`, border:`1px solid ${C.accent}40`, borderRadius:10, padding:"10px 20px", color:C.accent, fontSize:13, fontWeight:700, textDecoration:"none" }}>Fazer um pedido →</a>
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                {demandasAtivas.sort((a,b)=>(a.prazo||"").localeCompare(b.prazo||"")).map(d=>{
+                  const st = STATUS_DEMANDA[d.status]||STATUS_DEMANDA.triagem;
+                  const hoje = new Date().toISOString().split("T")[0];
+                  const atrasado = d.prazo && d.prazo < hoje;
+                  const stepIdx = KANBAN_COLS.indexOf(d.status);
+                  return (
+                    <div key={d.id} style={{ background:C.card, border:`1px solid ${atrasado?C.red:C.border}`, borderRadius:14, padding:"18px 20px", borderLeft:`3px solid ${atrasado?C.red:st.color}` }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+                        <div>
+                          <div style={{ color:C.text, fontWeight:700, fontSize:15, marginBottom:4 }}>{d.titulo}</div>
+                          {d.descricao && <div style={{ color:C.muted, fontSize:13, lineHeight:1.5 }}>{d.descricao}</div>}
+                        </div>
+                        <span style={{ background:`${st.color}20`, color:st.color, fontSize:11, padding:"4px 11px", borderRadius:99, fontWeight:700, whiteSpace:"nowrap", marginLeft:12, flexShrink:0 }}>{st.icon} {st.label}</span>
+                      </div>
+                      {/* Progress bar */}
+                      <div style={{ marginBottom:10 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                          {KANBAN_COLS.filter(k=>k!=="agenda").map((k,i)=>{
+                            const s = STATUS_DEMANDA[k];
+                            const done = KANBAN_COLS.indexOf(d.status) >= KANBAN_COLS.indexOf(k);
+                            return (
+                              <div key={k} style={{ display:"flex", flexDirection:"column", alignItems:"center", flex:1 }}>
+                                <div style={{ width:22, height:22, borderRadius:"50%", background:done?s.color:C.surface, border:`2px solid ${done?s.color:C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, marginBottom:3, transition:"all 0.3s" }}>
+                                  {done?<span style={{ color:"#fff", fontSize:9 }}>✓</span>:<span style={{ color:C.muted, fontSize:8 }}>{i+1}</span>}
+                                </div>
+                                <span style={{ color:done?s.color:C.muted, fontSize:8, textAlign:"center", maxWidth:50 }}>{s.label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                        {d.prazo && <span style={{ color:atrasado?C.red:C.muted, fontSize:12, fontWeight:atrasado?700:400 }}>📅 {atrasado?"Atrasado · ":""}{d.prazo}</span>}
+                        {d.valor>0 && <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {Number(d.valor).toLocaleString("pt-BR")}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Histórico */}
+        {tab==="historico" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {demandasFeitas.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"60px 0", color:C.muted }}>
+                <div style={{ fontSize:36, marginBottom:10 }}>📭</div>
+                <div>Nenhuma demanda finalizada ainda.</div>
+              </div>
+            ) : demandasFeitas.map(d=>(
+              <div key={d.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"15px 18px", display:"flex", alignItems:"center", gap:14, opacity:0.85 }}>
+                <span style={{ fontSize:20 }}>✅</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ color:C.text, fontWeight:600, fontSize:14 }}>{d.titulo}</div>
+                  {d.data_criacao && <div style={{ color:C.muted, fontSize:12, marginTop:3 }}>Criado em {d.data_criacao}</div>}
+                </div>
+                {d.valor>0 && <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {Number(d.valor).toLocaleString("pt-BR")}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tab: Marca */}
+        {tab==="marca" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {/* Cores */}
+            {cores.length > 0 && (
+              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 20px" }}>
+                <div style={{ color:C.text, fontWeight:700, fontSize:14, marginBottom:14 }}>🎨 Paleta de Cores</div>
+                <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                  {cores.map((c,i)=>(
+                    <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+                      <div style={{ width:52, height:52, borderRadius:12, background:c.hex||"#ccc", border:`2px solid ${C.border}`, boxShadow:"0 2px 8px rgba(0,0,0,0.3)" }}/>
+                      <span style={{ color:C.muted, fontSize:10, textAlign:"center", maxWidth:60 }}>{c.nome}</span>
+                      {c.hex && <span style={{ color:C.muted, fontSize:9, fontFamily:"monospace" }}>{c.hex}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Fontes */}
+            {cliente.fontes && (
+              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 20px" }}>
+                <div style={{ color:C.text, fontWeight:700, fontSize:14, marginBottom:10 }}>🔤 Tipografia</div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {cliente.fontes.split(",").map((f,i)=>(
+                    <span key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 14px", color:C.text, fontSize:13 }}>{f.trim()}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Briefing */}
+            {cliente.briefing_padrao && (
+              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 20px" }}>
+                <div style={{ color:C.text, fontWeight:700, fontSize:14, marginBottom:10 }}>📋 Briefing da Marca</div>
+                <p style={{ color:C.muted, fontSize:13, lineHeight:1.8, whiteSpace:"pre-wrap" }}>{cliente.briefing_padrao}</p>
+              </div>
+            )}
+            {!cores.length && !cliente.fontes && !cliente.briefing_padrao && (
+              <div style={{ textAlign:"center", padding:"60px 0", color:C.muted }}>
+                <div style={{ fontSize:36, marginBottom:10 }}>🎨</div>
+                <div>Nenhuma informação de marca cadastrada ainda.</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ textAlign:"center", marginTop:40, paddingTop:20, borderTop:`1px solid ${C.border}` }}>
+          <a href={linkPedido} style={{ background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:12, padding:"13px 28px", color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", textDecoration:"none", display:"inline-block", boxShadow:`0 4px 20px ${C.accentGlow}40` }}>
+            + Fazer novo pedido
+          </a>
+          <p style={{ color:C.muted, fontSize:11, marginTop:16 }}>Powered by FluxioHUB</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  // Detecta rota pública de pedido via hash
-  const hashRoute = window.location.hash.startsWith("#pedido/") ? "pedido" : null;
+  // Rotas públicas via hash (detectadas antes dos hooks mas renderizadas depois)
+  const hash = window.location.hash;
+  const isPortal = hash.startsWith("#portal/");
+  const isPedido = hash.startsWith("#pedido/");
+
+  // ⚠️ Todos os hooks ANTES de qualquer early return (regra do React)
+  const [loggedIn, setLoggedIn] = useState(() => !!localStorage.getItem("dh_session"));
+  const [showSettings, setShowSettings] = useState(false);
+
   const [view, setView] = useState(() => {
-    if (hashRoute) return hashRoute;
+    if (isPedido) return "pedido";
     try { return localStorage.getItem("dh_last_view") || "dashboard"; } catch { return "dashboard"; }
   });
 
@@ -2585,6 +2980,10 @@ export default function App() {
 
   const timer = useTimer(saveTimerDay);
 
+  // ── Early returns para rotas públicas (após todos os hooks) ──────────────
+  if (isPortal) return <PortalCliente />;
+  if (!loggedIn) return <LoginScreen onLogin={() => setLoggedIn(true)} />;
+
   // ── Indicador de status de sync no topbar ──────────────────────────────────
   const SyncDot = () => {
     if (!dbReady) return (
@@ -2675,13 +3074,23 @@ export default function App() {
           </nav>
           {!col&&(
             <div style={{ padding:"11px 13px", borderTop:`1px solid ${C.border}` }}>
-              <div style={{ background:C.card, borderRadius:10, padding:"9px 12px", border:`1px solid ${timer.running?C.accentGlow+"40":C.border}`, transition:"border-color 0.3s" }}>
+              <div style={{ background:C.card, borderRadius:10, padding:"9px 12px", border:`1px solid ${timer.running?C.accentGlow+"40":C.border}`, transition:"border-color 0.3s", marginBottom:10 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
                   <span style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em" }}>Timer</span>
                   <div style={{ width:6, height:6, borderRadius:"50%", background:timer.running?C.green:C.muted, boxShadow:timer.running?`0 0 6px ${C.green}`:"none", transition:"all 0.3s" }}/>
                 </div>
                 <div style={{ color:timer.running?C.teal:C.text, fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:15, letterSpacing:"0.02em" }}>{timer.fmt(timer.seconds)}</div>
               </div>
+              <button onClick={()=>setShowSettings(true)} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:8, background:"transparent", border:"1px solid transparent", color:C.muted, cursor:"pointer", fontSize:12, fontWeight:500, fontFamily:"inherit" }}
+                onMouseEnter={e=>e.currentTarget.style.background=C.card}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                ⚙️ <span>Configurações</span>
+              </button>
+            </div>
+          )}
+          {col&&(
+            <div style={{ padding:"11px 7px", borderTop:`1px solid ${C.border}` }}>
+              <button onClick={()=>setShowSettings(true)} title="Configurações" style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"10px", borderRadius:8, background:"transparent", border:"1px solid transparent", color:C.muted, cursor:"pointer", fontSize:16, fontFamily:"inherit" }}>⚙️</button>
             </div>
           )}
         </div>
@@ -2741,7 +3150,7 @@ export default function App() {
               }} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 11px", color:C.muted, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600 }}>
                 <Ico n="save" s={13} c={C.muted}/>CSV
               </button>
-              <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13 }}>F</div>
+              <div onClick={()=>setShowSettings(true)} title="Configurações" style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, cursor:"pointer" }}>F</div>
             </div>
           </div>
           {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas}/>}
@@ -2756,6 +3165,7 @@ export default function App() {
           {view==="notes"          && <Notes notes={notes} setNotes={setNotes}/>}
         </div>
       </div>
+      <SettingsModal open={showSettings} onClose={()=>setShowSettings(false)} onLogout={()=>{setLoggedIn(false);setShowSettings(false);}}/>
     </>
   );
 }
