@@ -228,7 +228,7 @@ function MonthPicker({ value, onChange, label }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
-function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) {
+function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[], setFocusMode }) {
   const today = new Date().toISOString().split("T")[0];
   const totalV = leads.filter(l=>l.status==="fechado").reduce((a,b)=>a+b.value,0);
   const pipeline = leads.filter(l=>!["fechado","perdido"].includes(l.status)).reduce((a,b)=>a+b.value,0);
@@ -1925,6 +1925,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                   </div>
                 )}
 
+
                 {/* ── DEMANDAS ── */}
                 {tab==="demandas" && (
                   <div>
@@ -2792,6 +2793,14 @@ function Kanban({ demandas, setDemandas, leads, setTasks }) {
                   })}
                 </div>
                 {/* Histórico de movimentações */}
+                <div style={{ marginTop:16 }}>
+                  <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>📋 Histórico de movimentações</div>
+                  {(!d.historico || d.historico.length===0) && (
+                    <div style={{ color:C.muted, fontSize:12, fontStyle:"italic", padding:"8px 12px", background:C.surface, borderRadius:8 }}>
+                      Sem movimentações ainda. Cada vez que mover este card, será registrado aqui.
+                    </div>
+                  )}
+                </div>
                 {d.historico?.length > 0 && (
                   <div style={{ marginTop:16 }}>
                     <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>📋 Histórico</div>
@@ -3266,6 +3275,11 @@ export default function App() {
   const handleSetView = (v) => {
     setView(v);
     try { localStorage.setItem("dh_last_view", v); } catch {}
+    // Ao entrar no Kanban, marca todas as demandas em triagem como vistas
+    if (v === "kanban") {
+      const ids = demandas.filter(d=>d.status==="triagem").map(d=>d.id);
+      setSeenTriagem(ids);
+    }
   };
 
   // Estado local (sempre funciona, mesmo offline)
@@ -3293,8 +3307,10 @@ export default function App() {
   // Estado de sincronização
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | loading | ok | error
   const loaded = useRef(false);
-  const [newOrderAlert, setNewOrderAlert] = useState(null); // { titulo, cliente }
+  const [newOrderAlert, setNewOrderAlert] = useState(null);
   const knownDemandaIds = useRef(null);
+  // IDs de demandas em triagem já visualizadas (badge some ao abrir)
+  const [seenTriagem, setSeenTriagem] = useLocalStorage("dh_seen_triagem", []);
 
   // ── Carrega dados do Supabase na abertura do app ───────────────────────────
   useEffect(() => {
@@ -3537,7 +3553,7 @@ export default function App() {
                 {!col&&<div style={{ color:C.muted, fontSize:9, textTransform:"uppercase", letterSpacing:"0.12em", fontWeight:700, padding:"10px 9px 5px" }}>{sec.label}</div>}
                 {nav.filter(n=>n.sec===sec.id).map(item=>{
                   const atrasados = item.id==="kanban" ? demandas.filter(d=>d.prazo&&d.prazo<new Date().toISOString().split("T")[0]&&d.status!=="finalizado").length : 0;
-                  const triagem = item.id==="kanban" ? demandas.filter(d=>d.status==="triagem").length : 0;
+                  const triagem = item.id==="kanban" ? demandas.filter(d=>d.status==="triagem"&&!seenTriagem.includes(d.id)).length : 0;
                   return (
                   <button key={item.id} onClick={()=>handleSetView(item.id)} title={col?item.label:""} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:col?"10px":"9px 11px", borderRadius:9, background:view===item.id?`${C.accent}16`:"transparent", border:view===item.id?`1px solid ${C.accent}28`:"1px solid transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontWeight:view===item.id?600:400, transition:"all 0.13s", justifyContent:col?"center":"flex-start", marginBottom:1, position:"relative" }}>
                     <div style={{ position:"relative" }}>
@@ -3643,7 +3659,7 @@ export default function App() {
                 <div style={{ color:"#fff", fontWeight:800, fontSize:14, fontFamily:"'Syne',sans-serif" }}>Novo pedido recebido!</div>
                 <div style={{ color:"rgba(255,255,255,0.85)", fontSize:12, marginTop:2 }}>{newOrderAlert.count>1?`${newOrderAlert.count} pedidos novos`:newOrderAlert.titulo}</div>
               </div>
-              <button onClick={()=>{setNewOrderAlert(null);handleSetView("kanban");}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, padding:"5px 10px", color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700 }}>Ver →</button>
+              <button onClick={()=>{setNewOrderAlert(null);setSeenTriagem([]);handleSetView("kanban");}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, padding:"5px 10px", color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700 }}>Ver →</button>
               <button onClick={()=>setNewOrderAlert(null)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.7)", cursor:"pointer", fontSize:16, padding:0 }}>×</button>
             </div>
           )}
@@ -3669,7 +3685,7 @@ export default function App() {
       <nav className="mobile-nav">
         {[
           {id:"dashboard",icon:"dashboard",label:"Home"},
-          {id:"kanban",icon:"kanban",label:"Kanban",badge:demandas.filter(d=>d.status==="triagem").length},
+          {id:"kanban",icon:"kanban",label:"Kanban",badge:demandas.filter(d=>d.status==="triagem"&&!seenTriagem.includes(d.id)).length},
           {id:"agenda",icon:"agenda",label:"Agenda"},
           {id:"clientes_fixos",icon:"star",label:"Clientes"},
           {id:"leads",icon:"leads",label:"CRM"},
