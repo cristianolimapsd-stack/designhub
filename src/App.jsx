@@ -1385,6 +1385,65 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
         </div>
       </div>
 
+      {/* ── DESPESAS ── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 22px", marginBottom:20 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>💸 Despesas do mês</span>
+            <span style={{ color:C.red, fontSize:13, fontWeight:700 }}>− R$ {totalDesp.toLocaleString("pt-BR")}</span>
+            <span style={{ color:lucroMes>=0?C.green:C.red, fontSize:13, fontWeight:700 }}>= Lucro: R$ {lucroMes.toLocaleString("pt-BR")}</span>
+          </div>
+          <button onClick={()=>{setFormDesp({id:0,descricao:"",valor:"",categoria:"ferramenta",data:selMonth+"-01"});setEditDespId(null);setModalDesp(true);}}
+            style={{ background:`${C.accent}20`, border:`1px solid ${C.accent}40`, borderRadius:9, padding:"7px 14px", color:C.accent, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
+            + Adicionar despesa
+          </button>
+        </div>
+        {despMes.length===0 ? (
+          <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"14px 0" }}>Nenhuma despesa em {selMonth.split("-").reverse().join("/")}. Clique em "+ Adicionar" para registrar.</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+            {despMes.sort((a,b)=>(b.data||"").localeCompare(a.data||"")).map(d=>{
+              const cor = catColors[d.categoria]||C.muted;
+              return (
+                <div key={d.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:C.surface, borderRadius:10, borderLeft:`3px solid ${cor}` }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{d.descricao}</div>
+                    <div style={{ display:"flex", gap:8, marginTop:3 }}>
+                      <span style={{ background:`${cor}15`, color:cor, fontSize:10, padding:"1px 8px", borderRadius:99, fontWeight:600 }}>{d.categoria}</span>
+                      <span style={{ color:C.muted, fontSize:11 }}>{d.data}</span>
+                    </div>
+                  </div>
+                  <span style={{ color:C.red, fontWeight:800, fontSize:14 }}>R$ {Number(d.valor).toLocaleString("pt-BR")}</span>
+                  <button onClick={()=>{setFormDesp({...d,valor:String(d.valor)});setEditDespId(d.id);setModalDesp(true);}} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:7, padding:"4px 8px", color:C.muted, cursor:"pointer", fontSize:11 }}>✏️</button>
+                  <button onClick={()=>delDesp(d.id)} style={{ background:`${C.red}10`, border:`1px solid ${C.red}25`, borderRadius:7, padding:"4px 8px", color:C.red, cursor:"pointer", fontSize:11 }}>🗑</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Modal despesa */}
+      {modalDesp && (
+        <div onClick={()=>setModalDesp(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:"100%", maxWidth:420 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+              <span style={{ color:C.text, fontWeight:700, fontSize:16 }}>{editDespId?"Editar":"Nova"} Despesa</span>
+              <button onClick={()=>setModalDesp(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:22 }}>×</button>
+            </div>
+            <Field label="Descrição" value={formDesp.descricao} onChange={v=>setFormDesp(f=>({...f,descricao:v}))} placeholder="Ex: Adobe CC, Domínio, Notebook..."/>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 14px" }}>
+              <Field label="Valor (R$)" value={formDesp.valor} onChange={v=>setFormDesp(f=>({...f,valor:v}))} type="number"/>
+              <Field label="Data" value={formDesp.data} onChange={v=>setFormDesp(f=>({...f,data:v}))} type="date"/>
+            </div>
+            <Field label="Categoria" value={formDesp.categoria} onChange={v=>setFormDesp(f=>({...f,categoria:v}))} options={catDesp.map(c=>({value:c,label:c.charAt(0).toUpperCase()+c.slice(1)}))}/>
+            <button onClick={saveDesp} style={{ width:"100%", background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:11, padding:"13px", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"'Syne',sans-serif", marginTop:4 }}>
+              {editDespId?"Salvar alterações":"Adicionar despesa"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── CONQUISTAS ── */}
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 24px" }}>
         <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:16 }}>🏅 Conquistas — {conquistas.filter(c=>c.ok).length}/{conquistas.length} desbloqueadas</span>
