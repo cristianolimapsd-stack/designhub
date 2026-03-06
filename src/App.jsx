@@ -267,9 +267,10 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
             </div>
           </div>
         </div>
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           <Btn onClick={timer.toggle} variant={timer.running?"ghost":"primary"} small><Ico n={timer.running?"pause":"play"} s={13} c={timer.running?C.accent:"#fff"}/>{timer.running?"Pausar":"Iniciar"}</Btn>
           <Btn onClick={timer.reset} variant="danger" small><Ico n="save" s={12} c={C.red}/>Salvar dia</Btn>
+          <Btn onClick={()=>setFocusMode(true)} variant="ghost" small>🎯 Foco</Btn>
         </div>
       </div>
 
@@ -383,6 +384,56 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
 // ══════════════════════════════════════════════════════════════════════════════
 // TIMER HISTORY
 // ══════════════════════════════════════════════════════════════════════════════
+function FocusMode({ timer, onClose }) {
+  const pct = timer.dailyGoal > 0 ? Math.min(100, Math.round(timer.seconds / timer.dailyGoal * 100)) : 0;
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const i = setInterval(()=>setTick(t=>t+1),1000); return ()=>clearInterval(i); },[]);
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:C.bg, zIndex:2000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');`}</style>
+      <button onClick={onClose} style={{ position:"absolute", top:24, right:24, background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 16px", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:"inherit" }}>✕ Sair do foco</button>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ color:C.muted, fontSize:13, textTransform:"uppercase", letterSpacing:"0.2em", marginBottom:16 }}>
+          {timer.running ? "🎯 em foco" : "⏸ pausado"}
+        </div>
+        {/* Big clock */}
+        <div style={{ color:timer.running?C.teal:C.text, fontFamily:"'Syne',sans-serif", fontSize:"clamp(64px,15vw,120px)", fontWeight:800, letterSpacing:"0.04em", lineHeight:1, marginBottom:28,
+          textShadow:timer.running?`0 0 40px ${C.teal}60`:"none", transition:"text-shadow 0.5s" }}>
+          {timer.fmt(timer.seconds)}
+        </div>
+        {/* Progress ring */}
+        <div style={{ position:"relative", width:200, height:200, margin:"0 auto 36px" }}>
+          <svg width="200" height="200" style={{ transform:"rotate(-90deg)" }}>
+            <circle cx="100" cy="100" r="88" fill="none" stroke={C.border} strokeWidth="8"/>
+            <circle cx="100" cy="100" r="88" fill="none" stroke={timer.running?C.teal:C.accent} strokeWidth="8"
+              strokeDasharray={`${2*Math.PI*88}`} strokeDashoffset={`${2*Math.PI*88*(1-pct/100)}`}
+              strokeLinecap="round" style={{ transition:"stroke-dashoffset 1s linear" }}/>
+          </svg>
+          <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ color:timer.running?C.teal:C.accent, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:28 }}>{pct}%</div>
+            <div style={{ color:C.muted, fontSize:11 }}>da meta</div>
+          </div>
+        </div>
+        {/* Controls */}
+        <div style={{ display:"flex", gap:16, justifyContent:"center" }}>
+          <button onClick={timer.toggle}
+            style={{ background:timer.running?`${C.accent}20`:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:`1px solid ${timer.running?C.accent:C.accent}`, borderRadius:16, padding:"16px 40px", color:timer.running?C.accent:"#fff", fontSize:18, fontWeight:800, cursor:"pointer", fontFamily:"'Syne',sans-serif", letterSpacing:"0.04em", boxShadow:timer.running?"none":`0 4px 20px ${C.accentGlow}50` }}>
+            {timer.running?"⏸ Pausar":"▶ Iniciar"}
+          </button>
+          <button onClick={timer.reset}
+            style={{ background:`${C.red}15`, border:`1px solid ${C.red}30`, borderRadius:16, padding:"16px 28px", color:C.red, fontSize:16, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            💾 Salvar dia
+          </button>
+        </div>
+        <div style={{ color:C.muted, fontSize:12, marginTop:24 }}>
+          {new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimerHistoryView({ timerHistory, timer }) {
   const [selMonth, setSelMonth] = useState(NOW_MONTH);
   const [yr, mo] = selMonth.split("-").map(Number);
@@ -1033,9 +1084,12 @@ function Finance({ leads, demandas, timerHistory }) {
     demandas.filter(d => d.status === "finalizado" && d.data_criacao?.startsWith(monthKey))
             .reduce((a,b) => a + (parseFloat(b.valor)||0), 0);
 
-  const moReceita   = receitaMes(selMonth);
-  const moJobs      = demandas.filter(d => d.status==="finalizado" && d.data_criacao?.startsWith(selMonth));
+  const moReceita     = receitaMes(selMonth);
+  const moJobs        = demandas.filter(d => d.status==="finalizado" && d.data_criacao?.startsWith(selMonth));
   const moEmAndamento = demandas.filter(d => d.status !== "finalizado" && d.data_criacao?.startsWith(selMonth));
+  const moAReceber    = moEmAndamento.reduce((a,b) => a + (parseFloat(b.valor)||0), 0);
+  const moPipeline    = demandas.filter(d => d.status !== "finalizado" && d.valor > 0);
+  const totalPipeline = moPipeline.reduce((a,b) => a + (parseFloat(b.valor)||0), 0);
 
   // Mês anterior
   const [yr, mo] = selMonth.split("-").map(Number);
@@ -1716,8 +1770,8 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                   style={{ background:isSel?`${C.teal}12`:C.card, border:`1px solid ${isSel?C.teal:C.border}`, borderRadius:14, padding:"14px 16px", cursor:"pointer", transition:"all 0.15s", position:"relative" }}>
                   <div style={{ position:"absolute", top:0, left:0, bottom:0, width:3, background:isSel?C.teal:"transparent", borderRadius:"14px 0 0 14px" }}/>
                   <div style={{ display:"flex", alignItems:"center", gap:11, marginBottom:10 }}>
-                    <div style={{ width:40, height:40, borderRadius:11, background:`linear-gradient(135deg,${C.teal}40,${C.accentGlow}40)`, display:"flex", alignItems:"center", justifyContent:"center", color:C.teal, fontWeight:800, fontSize:16, flexShrink:0 }}>
-                      {c.name.charAt(0)}
+                    <div style={{ width:40, height:40, borderRadius:11, background:`linear-gradient(135deg,${C.teal}40,${C.accentGlow}40)`, display:"flex", alignItems:"center", justifyContent:"center", color:C.teal, fontWeight:800, fontSize:16, flexShrink:0, overflow:"hidden" }}>
+                      {c.avatar_url ? <img src={c.avatar_url} alt={c.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none";}} /> : c.name.charAt(0)}
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ color:isSel?C.teal:C.text, fontWeight:700, fontSize:14, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.name}</div>
@@ -1729,7 +1783,13 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                       <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"2px 9px", borderRadius:99, fontWeight:600 }}>{c.tag||"—"}</span>
                       {nDemandas>0 && <span style={{ background:`${C.accent}15`, color:C.accent, fontSize:11, padding:"2px 9px", borderRadius:99, fontWeight:600 }}>{nDemandas} 📋</span>}
                     </div>
-                    <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {demandas.filter(d=>d.cliente_id===c.id&&d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0).toLocaleString("pt-BR")}</span>
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      {c.telefone && (
+                        <a href={`https://wa.me/55${c.telefone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}
+                          style={{ background:"#25D36618", border:"1px solid #25D36630", borderRadius:7, padding:"3px 8px", color:"#25D366", fontSize:11, fontWeight:700, textDecoration:"none" }}>💬</a>
+                      )}
+                      <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {demandas.filter(d=>d.cliente_id===c.id&&d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0).toLocaleString("pt-BR")}</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -1743,8 +1803,8 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
               <div style={{ background:`linear-gradient(135deg,${C.teal}18,${C.accentGlow}12)`, borderBottom:`1px solid ${C.border}`, padding:"20px 24px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                    <div style={{ width:56, height:56, borderRadius:15, background:`linear-gradient(135deg,${C.teal}60,${C.accentGlow}60)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:22, fontFamily:"'Syne',sans-serif", flexShrink:0 }}>
-                      {sel.name.charAt(0)}
+                    <div style={{ width:56, height:56, borderRadius:15, background:`linear-gradient(135deg,${C.teal}60,${C.accentGlow}60)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:22, fontFamily:"'Syne',sans-serif", flexShrink:0, overflow:"hidden" }}>
+                      {sel.avatar_url ? <img src={sel.avatar_url} alt={sel.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none";}} /> : sel.name.charAt(0)}
                     </div>
                     <div>
                       <div style={{ color:C.text, fontWeight:800, fontSize:20, fontFamily:"'Syne',sans-serif", marginBottom:3 }}>{sel.name}</div>
@@ -1763,6 +1823,12 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                       <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{demandas.filter(d=>d.cliente_id===sel.id&&d.status==="finalizado").length} job{demandas.filter(d=>d.cliente_id===sel.id&&d.status==="finalizado").length!==1?"s":""} finalizado{demandas.filter(d=>d.cliente_id===sel.id&&d.status==="finalizado").length!==1?"s":""}</div>
                     </div>
                     <div style={{ display:"flex", gap:8 }}>
+                      {sel.telefone && (
+                        <a href={`https://wa.me/55${sel.telefone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
+                          style={{ background:"#25D36620", border:"1px solid #25D36640", borderRadius:8, padding:"6px 12px", color:"#25D366", fontSize:12, fontWeight:600, display:"flex", alignItems:"center", gap:5, textDecoration:"none" }}>
+                          💬 WhatsApp
+                        </a>
+                      )}
                       {sel.redes && (
                         <a href={sel.redes.startsWith("http")?sel.redes:"https://"+sel.redes} target="_blank" rel="noopener noreferrer"
                           style={{ background:`${C.accent}15`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"6px 12px", color:C.accent, fontSize:12, fontWeight:600, display:"flex", alignItems:"center", gap:5, textDecoration:"none" }}>
@@ -2007,8 +2073,8 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
           <Field label="Email" value={form.email} onChange={v=>setForm(f=>({...f,email:v}))} type="email"/>
           <Field label="Telefone / WhatsApp" value={form.telefone||""} onChange={v=>setForm(f=>({...f,telefone:v}))} placeholder="(11) 99999-9999"/>
           <Field label="Tag / Serviço" value={form.tag} onChange={v=>setForm(f=>({...f,tag:v}))}/>
-          {/* Valor total calculado automaticamente pelas demandas finalizadas */}
         </div>
+        <Field label="Foto / Avatar (URL da imagem)" value={form.avatar_url||""} onChange={v=>setForm(f=>({...f,avatar_url:v}))} placeholder="https://example.com/foto.jpg"/>
         <Field label="Redes sociais / Site (URL)" value={form.redes||""} onChange={v=>setForm(f=>({...f,redes:v}))} placeholder="https://instagram.com/..."/>
         <Field label="Fontes (separadas por vírgula)" value={form.fontes||""} onChange={v=>setForm(f=>({...f,fontes:v}))} placeholder="Montserrat Bold, Lato Regular"/>
         <div style={{ marginBottom:14 }}>
@@ -2712,13 +2778,39 @@ function Kanban({ demandas, setDemandas, leads, setTasks }) {
                   {KANBAN_COLS.filter(k => k !== d.status).map(k => {
                     const v = STATUS_DEMANDA[k];
                     return (
-                      <button key={k} onClick={() => { setDemandas(ds => ds.map(x => x.id===d.id ? {...x,status:k} : x)); setModalCard({...d,status:k}); }}
+                      <button key={k} onClick={() => {
+                        const now = new Date().toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+                        const entrada = { de: d.status, para: k, em: now };
+                        const historico = [...(d.historico||[]), entrada];
+                        setDemandas(ds => ds.map(x => x.id===d.id ? {...x,status:k,historico} : x));
+                        setModalCard({...d,status:k,historico});
+                      }}
                         style={{ background:`${v.color}15`, border:`1px solid ${v.color}40`, borderRadius:9, padding:"8px 14px", color:v.color, fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
                         {v.icon} {v.label}
                       </button>
                     );
                   })}
                 </div>
+                {/* Histórico de movimentações */}
+                {d.historico?.length > 0 && (
+                  <div style={{ marginTop:16 }}>
+                    <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>📋 Histórico</div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                      {d.historico.slice(-5).reverse().map((h,i) => {
+                        const de = STATUS_DEMANDA[h.de]||{icon:"?",label:h.de,color:C.muted};
+                        const para = STATUS_DEMANDA[h.para]||{icon:"?",label:h.para,color:C.muted};
+                        return (
+                          <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", background:C.surface, borderRadius:8, fontSize:12 }}>
+                            <span style={{ color:de.color }}>{de.icon} {de.label}</span>
+                            <span style={{ color:C.muted }}>→</span>
+                            <span style={{ color:para.color, fontWeight:700 }}>{para.icon} {para.label}</span>
+                            <span style={{ color:C.muted, marginLeft:"auto", fontSize:10 }}>{h.em}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2984,8 +3076,8 @@ function PortalCliente() {
       <div style={{ maxWidth:800, margin:"0 auto", padding:"28px 20px" }}>
         {/* Profile card */}
         <div style={{ background:`linear-gradient(135deg,${C.accentGlow}18,${C.card})`, border:`1px solid ${C.accent}30`, borderRadius:18, padding:"24px 28px", marginBottom:24, display:"flex", alignItems:"center", gap:20 }}>
-          <div style={{ width:64, height:64, borderRadius:18, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:26, flexShrink:0 }}>
-            {cliente.name.charAt(0)}
+          <div style={{ width:64, height:64, borderRadius:18, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:26, flexShrink:0, overflow:"hidden" }}>
+            {cliente.avatar_url ? <img src={cliente.avatar_url} alt={cliente.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none";}} /> : cliente.name.charAt(0)}
           </div>
           <div style={{ flex:1 }}>
             <div style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22, marginBottom:4 }}>{cliente.name}</div>
@@ -3163,6 +3255,7 @@ export default function App() {
   // ⚠️ Todos os hooks ANTES de qualquer early return (regra do React)
   const [loggedIn, setLoggedIn] = useState(() => !!localStorage.getItem("dh_session"));
   const [showSettings, setShowSettings] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
 
   const [view, setView] = useState(() => {
     if (isPedido) return "pedido";
@@ -3444,11 +3537,16 @@ export default function App() {
                 {!col&&<div style={{ color:C.muted, fontSize:9, textTransform:"uppercase", letterSpacing:"0.12em", fontWeight:700, padding:"10px 9px 5px" }}>{sec.label}</div>}
                 {nav.filter(n=>n.sec===sec.id).map(item=>{
                   const atrasados = item.id==="kanban" ? demandas.filter(d=>d.prazo&&d.prazo<new Date().toISOString().split("T")[0]&&d.status!=="finalizado").length : 0;
+                  const triagem = item.id==="kanban" ? demandas.filter(d=>d.status==="triagem").length : 0;
                   return (
                   <button key={item.id} onClick={()=>handleSetView(item.id)} title={col?item.label:""} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:col?"10px":"9px 11px", borderRadius:9, background:view===item.id?`${C.accent}16`:"transparent", border:view===item.id?`1px solid ${C.accent}28`:"1px solid transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontWeight:view===item.id?600:400, transition:"all 0.13s", justifyContent:col?"center":"flex-start", marginBottom:1, position:"relative" }}>
-                    <Ico n={item.icon} s={15} c={view===item.id?C.accent:C.muted}/>
+                    <div style={{ position:"relative" }}>
+                      <Ico n={item.icon} s={15} c={view===item.id?C.accent:C.muted}/>
+                      {col&&triagem>0&&<span style={{ position:"absolute", top:-5, right:-6, background:C.accent, color:"#fff", fontSize:9, fontWeight:800, padding:"0 4px", borderRadius:99, minWidth:14, textAlign:"center", lineHeight:"14px" }}>{triagem}</span>}
+                    </div>
                     {!col&&<span style={{ flex:1, textAlign:"left" }}>{item.label}</span>}
-                    {!col&&atrasados>0&&<span style={{ background:C.red, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:99, minWidth:18, textAlign:"center" }}>{atrasados}</span>}
+                    {!col&&triagem>0&&<span style={{ background:C.accent, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:99, minWidth:18, textAlign:"center" }}>{triagem}</span>}
+                    {!col&&triagem===0&&atrasados>0&&<span style={{ background:C.red, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:99, minWidth:18, textAlign:"center" }}>{atrasados}</span>}
                   </button>
                   );
                 })}
@@ -3550,7 +3648,7 @@ export default function App() {
             </div>
           )}
           <div style={{ paddingBottom:64 }}>
-          {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas}/>}
+          {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={setFocusMode}/>}
           {view==="kanban"         && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads} setTasks={setTasks}/>}
           {view==="leads"          && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
@@ -3564,20 +3662,22 @@ export default function App() {
           </div>
         </div>
       </div>
+      {focusMode && <FocusMode timer={timer} onClose={()=>setFocusMode(false)}/>}
       <SettingsModal open={showSettings} onClose={()=>setShowSettings(false)} onLogout={()=>{setLoggedIn(false);setShowSettings(false);}} theme={theme} onTheme={applyTheme} onStudio={(n)=>setStudioLabel(n||"FluxioHUB")}/>
 
       {/* Mobile bottom navigation */}
       <nav className="mobile-nav">
         {[
           {id:"dashboard",icon:"dashboard",label:"Home"},
-          {id:"kanban",icon:"kanban",label:"Kanban"},
+          {id:"kanban",icon:"kanban",label:"Kanban",badge:demandas.filter(d=>d.status==="triagem").length},
           {id:"agenda",icon:"agenda",label:"Agenda"},
           {id:"clientes_fixos",icon:"star",label:"Clientes"},
           {id:"leads",icon:"leads",label:"CRM"},
         ].map(item=>(
           <button key={item.id} onClick={()=>handleSetView(item.id)}
-            style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, background:"none", border:"none", cursor:"pointer", padding:"4px 8px", borderRadius:10, color:view===item.id?C.accent:C.muted, transition:"color 0.15s" }}>
+            style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, background:"none", border:"none", cursor:"pointer", padding:"4px 8px", borderRadius:10, color:view===item.id?C.accent:C.muted, transition:"color 0.15s", position:"relative" }}>
             <Ico n={item.icon} s={22} c={view===item.id?C.accent:C.muted}/>
+            {item.badge>0&&<span style={{ position:"absolute", top:0, right:2, background:C.accent, color:"#fff", fontSize:9, fontWeight:800, padding:"0 4px", borderRadius:99, minWidth:14, textAlign:"center", lineHeight:"14px" }}>{item.badge}</span>}
             <span style={{ fontSize:9, fontWeight:view===item.id?700:400 }}>{item.label}</span>
           </button>
         ))}
