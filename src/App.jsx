@@ -224,19 +224,19 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
   const todT = tasks.filter(t=>t.date===today);
   const pct = Math.min(100, Math.round((timer.seconds/timer.goal)*100));
 
-  // Last 7 days timer
+  // Last 7 days timer - using real current dates
   const last7 = Array.from({length:7},(_,i)=>{
-    const d = new Date(2026,2,5-i); // from March 5 back
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
     const key = d.toISOString().split("T")[0];
     const rec = timerHistory.find(h=>h.date===key);
     return { label:d.toLocaleDateString("pt-BR",{weekday:"short",day:"numeric"}), secs: key===today?timer.seconds:(rec?.seconds||0) };
-  }).reverse();
+  });
   const maxSecs = Math.max(...last7.map(d=>d.secs), 1);
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:1100 }}>
       <div style={{ marginBottom:26 }}>
-        <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, margin:0, letterSpacing:"-0.02em" }}>Bom dia! ☀️</h1>
+        <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, margin:0, letterSpacing:"-0.02em" }}>{(()=>{const h=new Date().getHours();return h<12?"Bom dia! ☀️":h<18?"Boa tarde! 🌤":"Boa noite! 🌙";})()}</h1>
         <p style={{ color:C.muted, margin:"5px 0 0", fontSize:13 }}>{new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
       </div>
 
@@ -299,6 +299,34 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
           })}
         </div>
       </div>
+
+      {/* Alertas de prazo */}
+      {(() => {
+        const urgentes = demandas.filter(d => d.status !== "finalizado" && d.prazo && d.prazo <= new Date(Date.now()+2*86400000).toISOString().split("T")[0]);
+        if (urgentes.length === 0) return null;
+        return (
+          <div style={{ background:`${C.red}10`, border:`1px solid ${C.red}30`, borderRadius:14, padding:"16px 22px", marginBottom:22 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+              <span style={{ fontSize:16 }}>🚨</span>
+              <span style={{ color:C.red, fontWeight:700, fontSize:14 }}>{urgentes.length} demanda{urgentes.length>1?"s":""} urgente{urgentes.length>1?"s":""}</span>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {urgentes.map(d=>{
+                const dias = Math.ceil((new Date(d.prazo) - new Date(today)) / 86400000);
+                return (
+                  <div key={d.id} style={{ display:"flex", alignItems:"center", gap:10, background:`${C.red}08`, borderRadius:9, padding:"9px 14px", border:`1px solid ${C.red}20` }}>
+                    <span style={{ fontSize:13 }}>{dias < 0 ? "🔴" : dias === 0 ? "🟠" : "🟡"}</span>
+                    <span style={{ color:C.text, fontSize:13, flex:1, fontWeight:600 }}>{d.titulo}</span>
+                    <span style={{ color:C.red, fontSize:12, fontWeight:700 }}>
+                      {dias < 0 ? `${Math.abs(dias)}d atrasado` : dias === 0 ? "Vence hoje!" : "Amanhã"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
         {/* Timer 7 days */}
@@ -522,6 +550,7 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
     setModal(false);
   };
   const del = id => {
+    if (!window.confirm("Excluir este contato? As demandas vinculadas também serão removidas.")) return;
     setLeads(ls => ls.filter(l => l.id !== id));
     if (setDemandas) setDemandas(ds => ds.filter(d => d.cliente_id !== id));
   };
@@ -656,7 +685,10 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
                         <div><div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{l.name}</div><div style={{ color:C.muted, fontSize:11 }}>{l.email}</div></div>
                       </div>
                     </td>
-                    <td style={{ padding:"13px 18px", color:C.muted, fontSize:13 }}>{l.company}</td>
+                    <td style={{ padding:"13px 18px" }}>
+                      <div style={{ color:C.muted, fontSize:13 }}>{l.company}</div>
+                      {l.telefone && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>📱 {l.telefone}</div>}
+                    </td>
                     <td style={{ padding:"13px 18px" }}>
                       <span style={{ background:`${cat.color}15`, color:cat.color, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>
                         {cat.icon} {cat.label}
@@ -748,6 +780,7 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
           <Field label="Nome" value={form.name} onChange={v=>setForm(f=>({...f,name:v}))}/>
           <Field label="Empresa" value={form.company} onChange={v=>setForm(f=>({...f,company:v}))}/>
           <Field label="Email" value={form.email} onChange={v=>setForm(f=>({...f,email:v}))} type="email"/>
+          <Field label="Telefone / WhatsApp" value={form.telefone||""} onChange={v=>setForm(f=>({...f,telefone:v}))} placeholder="(11) 99999-9999"/>
           <Field label="Valor (R$)" value={form.value} onChange={v=>setForm(f=>({...f,value:v}))} type="number"/>
           <Field label="Tag / Serviço" value={form.tag} onChange={v=>setForm(f=>({...f,tag:v}))}/>
           <Field label="Status" value={form.status} onChange={v=>setForm(f=>({...f,status:v}))} options={Object.entries(STATUS).map(([k,v])=>({value:k,label:v.label}))}/>
@@ -771,37 +804,48 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
   const today = new Date().toISOString().split("T")[0];
   const [vm, setVm] = useState("list");
   const [modal, setModal] = useState(false);
-  const [calBase, setCalBase] = useState(new Date(2026,2,1));
+  const [calBase, setCalBase] = useState(new Date());
   const [selDay, setSelDay] = useState(today);
   const [form, setForm] = useState({ title:"", time:"09:00", date:today, priority:"media", type:"tarefa" });
 
+  const [editTaskId, setEditTaskId] = useState(null);
+
   const toggle = id => setTasks(ts=>ts.map(t=>t.id===id?{...t,done:!t.done}:t));
   const del = id => {
+    if (!window.confirm("Excluir esta tarefa?")) return;
     setTasks(ts => ts.filter(t => t.id !== id));
     if (setDemandas) setDemandas(ds => ds.filter(d => d.task_id !== id));
   };
-  const add = () => {
+  const openEdit = t => {
+    setForm({ title:t.title, time:t.time, date:t.date, priority:t.priority, type:t.type });
+    setEditTaskId(t.id);
+    setModal(true);
+  };
+  const openNew = (date) => {
+    setForm(f=>({...f, title:"", time:"09:00", date:date||today}));
+    setEditTaskId(null);
+    setModal(true);
+  };
+  const save = () => {
     if (!form.title) return;
-    const newId = Date.now();
-    setTasks(ts=>[...ts,{...form,id:newId,done:false}]);
-    // Criar demanda no Kanban com status "agenda"
-    if (setDemandas) {
-      const demanda = {
-        id: newId + 1,
-        titulo: form.title,
-        descricao: "",
-        prazo: form.date,
-        valor: 0,
-        status: "agenda",
-        cliente_id: null,
-        tag: form.type === "reuniao" ? "Reunião" : form.type === "entrega" ? "Entrega" : "Tarefa",
-        task_id: newId,
-        data_criacao: new Date().toISOString().split("T")[0],
-      };
-      setDemandas(ds => [...ds, demanda]);
+    if (editTaskId) {
+      setTasks(ts => ts.map(t => t.id===editTaskId ? {...t,...form} : t));
+      if (setDemandas) setDemandas(ds => ds.map(d => d.task_id===editTaskId ? {...d, titulo:form.title, prazo:form.date, tag: form.type==="reuniao"?"Reunião":form.type==="entrega"?"Entrega":"Tarefa"} : d));
+    } else {
+      const newId = Date.now();
+      setTasks(ts=>[...ts,{...form,id:newId,done:false}]);
+      if (setDemandas) {
+        setDemandas(ds => [...ds, {
+          id: newId + 1, titulo: form.title, descricao: "", prazo: form.date,
+          valor: 0, status: "agenda", cliente_id: null,
+          tag: form.type==="reuniao"?"Reunião":form.type==="entrega"?"Entrega":"Tarefa",
+          task_id: newId, data_criacao: new Date().toISOString().split("T")[0],
+        }]);
+      }
     }
     setForm(f=>({...f,title:"",time:"09:00"}));
     setModal(false);
+    setEditTaskId(null);
   };
 
   const sorted = [...tasks].sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
@@ -826,6 +870,7 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
       <span style={{ fontSize:15, flexShrink:0 }}>{TYPE[t.type].icon}</span>
       <span style={{ color:t.done?C.muted:C.text, fontSize:13, flex:1, textDecoration:t.done?"line-through":"none" }}>{t.title}</span>
       <span style={{ color:C.muted, fontSize:11, flexShrink:0 }}>{t.date}</span>
+      <button onClick={()=>openEdit(t)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:3 }}><Ico n="edit" s={12}/></button>
       <button onClick={()=>del(t.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:3 }}><Ico n="trash" s={12}/></button>
     </div>
   );
@@ -839,7 +884,7 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
         </div>
         <div style={{ display:"flex", gap:12 }}>
           <Toggle val={vm} onChange={setVm} opts={[{v:"list",label:"Lista",icon:"list"},{v:"calendar",label:"Calendário",icon:"calendar"}]}/>
-          <Btn onClick={()=>{setForm(f=>({...f,date:selDay}));setModal(true);}}><Ico n="plus" s={14} c="#fff"/> Nova Tarefa</Btn>
+          <Btn onClick={()=>openNew(selDay)}><Ico n="plus" s={14} c="#fff"/> Nova Tarefa</Btn>
         </div>
       </div>
       {vm==="list" ? (
@@ -897,7 +942,7 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, overflow:"hidden", display:"flex", flexDirection:"column" }}>
             <div style={{ padding:"14px 16px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>{new Date(selDay+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"numeric",month:"short"})}</span>
-              <Btn onClick={()=>{setForm(f=>({...f,date:selDay}));setModal(true);}} variant="ghost" small><Ico n="plus" s={12} c={C.accent}/></Btn>
+              <Btn onClick={()=>openNew(selDay)} variant="ghost" small><Ico n="plus" s={12} c={C.accent}/></Btn>
             </div>
             <div style={{ flex:1, overflowY:"auto" }}>
               {sideTasks.length===0&&<div style={{ padding:30, textAlign:"center", color:C.muted, fontSize:13 }}>Sem tarefas neste dia.</div>}
@@ -914,6 +959,7 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
                       <span style={{ background:`${PRIORITY[t.priority].dot}18`, color:PRIORITY[t.priority].dot, fontSize:10, padding:"1px 7px", borderRadius:99, fontWeight:700, textTransform:"uppercase" }}>{t.priority}</span>
                     </div>
                   </div>
+                  <button onClick={()=>openEdit(t)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:2 }}><Ico n="edit" s={12}/></button>
                   <button onClick={()=>del(t.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:2 }}><Ico n="trash" s={12}/></button>
                 </div>
               ))}
@@ -921,7 +967,7 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
           </div>
         </div>
       )}
-      <Modal open={modal} onClose={()=>setModal(false)} title="Nova Tarefa">
+      <Modal open={modal} onClose={()=>setModal(false)} title={editTaskId?"Editar Tarefa":"Nova Tarefa"}>
         <Field label="Título" value={form.title} onChange={v=>setForm(f=>({...f,title:v}))} placeholder="Ex: Call com cliente..."/>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
           <Field label="Data" value={form.date} onChange={v=>setForm(f=>({...f,date:v}))} type="date"/>
@@ -929,7 +975,7 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
           <Field label="Prioridade" value={form.priority} onChange={v=>setForm(f=>({...f,priority:v}))} options={[{value:"alta",label:"Alta"},{value:"media",label:"Média"},{value:"baixa",label:"Baixa"}]}/>
           <Field label="Tipo" value={form.type} onChange={v=>setForm(f=>({...f,type:v}))} options={Object.entries(TYPE).map(([k,v])=>({value:k,label:v.label}))}/>
         </div>
-        <Btn onClick={add} full>Adicionar Tarefa</Btn>
+        <Btn onClick={save} full>{editTaskId?"Salvar alterações":"Adicionar Tarefa"}</Btn>
       </Modal>
     </div>
   );
@@ -1272,7 +1318,7 @@ function Portfolio({ items, setItems }) {
     else setItems(is=>[...is,{...item,id:Date.now()}]);
     setModal(false);
   };
-  const del = id => setItems(is=>is.filter(i=>i.id!==id));
+  const del = id => { if(window.confirm("Excluir este projeto do portfólio?")) setItems(is=>is.filter(i=>i.id!==id)); };
 
   const allTags = ["todos",...new Set(items.map(i=>i.tag))];
   const filtered = items.filter(i=>filterTag==="todos"||i.tag===filterTag);
@@ -1400,7 +1446,7 @@ function Notes({ notes, setNotes }) {
               <div key={n.id} onClick={()=>setActive(n.id)} style={{ padding:"11px 13px", borderBottom:`1px solid ${C.border}`, cursor:"pointer", background:active===n.id?`${C.accent}10`:"transparent", borderLeft:`3px solid ${active===n.id?C.accent:"transparent"}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between" }}>
                   <span style={{ color:active===n.id?C.accent:C.text, fontSize:13, fontWeight:600 }}>{n.title}</span>
-                  <button onClick={e=>{e.stopPropagation();setNotes(ns=>ns.filter(x=>x.id!==n.id));if(active===n.id)setActive(null);}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:0, fontSize:16 }}>×</button>
+                  <button onClick={e=>{e.stopPropagation();if(window.confirm("Excluir esta nota?")){setNotes(ns=>ns.filter(x=>x.id!==n.id));if(active===n.id)setActive(null);}}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:0, fontSize:16 }}>×</button>
                 </div>
                 <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>{n.date}</div>
                 {n.content&&<div style={{ color:C.muted, fontSize:11, marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{n.content}</div>}
@@ -2432,6 +2478,8 @@ export default function App() {
   const [notes,        setNotesLocal]        = useLocalStorage("dh_notes",     INIT_NOTES);
   const [demandas,     setDemandasLocal]     = useLocalStorage("dh_demandas",  initDemandas);
   const [col, setCol] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Estado de sincronização
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | loading | ok | error
@@ -2644,10 +2692,55 @@ export default function App() {
             <span style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:14 }}>{nav.find(n=>n.id===view)?.label||view}</span>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
               <SyncDot/>
-              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:"6px 13px", display:"flex", alignItems:"center", gap:7 }}>
-                <Ico n="search" s={13} c={C.muted}/>
-                <input placeholder="Buscar..." style={{ background:"none", border:"none", color:C.text, fontSize:13, outline:"none", width:110, fontFamily:"inherit" }}/>
+              <div style={{ position:"relative" }}>
+                <div style={{ background:C.card, border:`1px solid ${searchQ?C.accent:C.border}`, borderRadius:18, padding:"6px 13px", display:"flex", alignItems:"center", gap:7, transition:"border-color 0.2s" }}>
+                  <Ico n="search" s={13} c={searchQ?C.accent:C.muted}/>
+                  <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} onFocus={()=>setSearchOpen(true)}
+                    placeholder="Buscar em tudo..." style={{ background:"none", border:"none", color:C.text, fontSize:13, outline:"none", width:130, fontFamily:"inherit" }}/>
+                  {searchQ && <button onClick={()=>{setSearchQ("");setSearchOpen(false);}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:0, display:"flex" }}><Ico n="close" s={12}/></button>}
+                </div>
+                {searchOpen && searchQ.length > 1 && (()=>{
+                  const q = searchQ.toLowerCase();
+                  const rLeads = leads.filter(l=>l.name?.toLowerCase().includes(q)||l.company?.toLowerCase().includes(q)||l.email?.toLowerCase().includes(q)).slice(0,3);
+                  const rTasks = tasks.filter(t=>t.title?.toLowerCase().includes(q)).slice(0,3);
+                  const rNotes = notes.filter(n=>n.title?.toLowerCase().includes(q)||n.content?.toLowerCase().includes(q)).slice(0,2);
+                  const rDemandas = demandas.filter(d=>d.titulo?.toLowerCase().includes(q)).slice(0,2);
+                  const total = rLeads.length+rTasks.length+rNotes.length+rDemandas.length;
+                  return (
+                    <div style={{ position:"absolute", top:"calc(100% + 8px)", right:0, width:340, background:C.card, border:`1px solid ${C.border}`, borderRadius:14, boxShadow:"0 20px 50px rgba(0,0,0,0.5)", zIndex:200, overflow:"hidden" }}>
+                      {total===0 && <div style={{ padding:"16px 18px", color:C.muted, fontSize:13 }}>Nenhum resultado para "{searchQ}"</div>}
+                      {rLeads.length>0 && <><div style={{ padding:"8px 14px 4px", color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:700 }}>Contatos</div>
+                        {rLeads.map(l=><div key={l.id} onClick={()=>{handleSetView("leads");setSearchQ("");setSearchOpen(false);}} style={{ padding:"9px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:10, borderTop:`1px solid ${C.border}` }} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <div style={{ width:28,height:28,borderRadius:8,background:`${C.teal}20`,display:"flex",alignItems:"center",justifyContent:"center",color:C.teal,fontWeight:700,fontSize:12,flexShrink:0 }}>{l.name?.charAt(0)}</div>
+                          <div><div style={{ color:C.text,fontSize:13,fontWeight:600 }}>{l.name}</div><div style={{ color:C.muted,fontSize:11 }}>{l.company}</div></div>
+                        </div>)}</>}
+                      {rDemandas.length>0 && <><div style={{ padding:"8px 14px 4px", color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:700, borderTop:`1px solid ${C.border}` }}>Demandas</div>
+                        {rDemandas.map(d=><div key={d.id} onClick={()=>{handleSetView("kanban");setSearchQ("");setSearchOpen(false);}} style={{ padding:"9px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:10, borderTop:`1px solid ${C.border}` }} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{ fontSize:16 }}>{STATUS_DEMANDA[d.status]?.icon||"📋"}</span>
+                          <div><div style={{ color:C.text,fontSize:13,fontWeight:600 }}>{d.titulo}</div><div style={{ color:C.muted,fontSize:11 }}>{STATUS_DEMANDA[d.status]?.label}</div></div>
+                        </div>)}</>}
+                      {rTasks.length>0 && <><div style={{ padding:"8px 14px 4px", color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:700, borderTop:`1px solid ${C.border}` }}>Tarefas</div>
+                        {rTasks.map(t=><div key={t.id} onClick={()=>{handleSetView("agenda");setSearchQ("");setSearchOpen(false);}} style={{ padding:"9px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:10, borderTop:`1px solid ${C.border}` }} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{ fontSize:16 }}>{TYPE[t.type]?.icon}</span>
+                          <div><div style={{ color:C.text,fontSize:13,fontWeight:600 }}>{t.title}</div><div style={{ color:C.muted,fontSize:11 }}>{t.date} · {t.time}</div></div>
+                        </div>)}</>}
+                      {rNotes.length>0 && <><div style={{ padding:"8px 14px 4px", color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:700, borderTop:`1px solid ${C.border}` }}>Notas</div>
+                        {rNotes.map(n=><div key={n.id} onClick={()=>{handleSetView("notes");setSearchQ("");setSearchOpen(false);}} style={{ padding:"9px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:10, borderTop:`1px solid ${C.border}` }} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{ fontSize:16 }}>📝</span>
+                          <div><div style={{ color:C.text,fontSize:13,fontWeight:600 }}>{n.title}</div><div style={{ color:C.muted,fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:230 }}>{n.content}</div></div>
+                        </div>)}</>}
+                    </div>
+                  );
+                })()}
               </div>
+              <button title="Exportar dados (CSV)" onClick={()=>{
+                const esc = v => `"${String(v??'').replace(/"/g,'""')}"`;
+                const toCSV = (rows, cols) => [cols.join(","), ...rows.map(r=>cols.map(c=>esc(r[c])).join(","))].join("\n");
+                const dl = (csv, name) => { const a=document.createElement("a"); a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv); a.download=name; a.click(); };
+                dl(toCSV(leads,["name","company","email","telefone","tag","status","value","categoria","date"]),"leads.csv");
+              }} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 11px", color:C.muted, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600 }}>
+                <Ico n="save" s={13} c={C.muted}/>CSV
+              </button>
               <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13 }}>F</div>
             </div>
           </div>
