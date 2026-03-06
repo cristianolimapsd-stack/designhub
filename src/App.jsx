@@ -33,14 +33,19 @@ const NOW_YEAR  = 2026;
 const NOW_MO    = 2; // index 0-based = March
 
 // ─── Initial Data ─────────────────────────────────────────────────────────────
+const CATEGORIA = {
+  lead:         { label:"Lead",          color:C.yellow, icon:"⚡" },
+  cliente_fixo: { label:"Cliente Fixo",  color:C.teal,   icon:"⭐" },
+};
+
 const initLeads = [
-  { id:1, name:"Mateus Costa",   company:"Pixel Studio",  email:"mateus@pixel.io",  value:4500,  status:"novo",       date:"2026-03-01", tag:"Design"   },
-  { id:2, name:"Fernanda Lima",  company:"Brand Co",      email:"fer@brandco.com",  value:12000, status:"negociando", date:"2026-02-28", tag:"Branding" },
-  { id:3, name:"Lucas Andrade",  company:"Tech Venture",  email:"lucas@tv.com",     value:8500,  status:"proposta",   date:"2026-02-25", tag:"UI/UX"    },
-  { id:4, name:"Ana Beatriz",    company:"Startup XYZ",   email:"ana@xyz.com",      value:3200,  status:"fechado",    date:"2026-02-20", tag:"Logo"     },
-  { id:5, name:"Roberto Mendes", company:"Agência Sol",   email:"roberto@sol.com",  value:6700,  status:"perdido",    date:"2026-02-18", tag:"Web"      },
-  { id:6, name:"Clara Nunes",    company:"Studio N",      email:"clara@n.com",      value:5800,  status:"fechado",    date:"2026-03-02", tag:"UI/UX"    },
-  { id:7, name:"Pedro Ramos",    company:"VisualLab",     email:"pedro@vl.com",     value:9200,  status:"proposta",   date:"2026-03-03", tag:"Branding" },
+  { id:1, name:"Mateus Costa",   company:"Pixel Studio",  email:"mateus@pixel.io",  value:4500,  status:"novo",       date:"2026-03-01", tag:"Design",   categoria:"lead",         briefing_padrao:"" },
+  { id:2, name:"Fernanda Lima",  company:"Brand Co",      email:"fer@brandco.com",  value:12000, status:"negociando", date:"2026-02-28", tag:"Branding", categoria:"lead",         briefing_padrao:"" },
+  { id:3, name:"Lucas Andrade",  company:"Tech Venture",  email:"lucas@tv.com",     value:8500,  status:"proposta",   date:"2026-02-25", tag:"UI/UX",    categoria:"lead",         briefing_padrao:"" },
+  { id:4, name:"Ana Beatriz",    company:"Startup XYZ",   email:"ana@xyz.com",      value:3200,  status:"fechado",    date:"2026-02-20", tag:"Logo",     categoria:"cliente_fixo", briefing_padrao:"Cores: rosa (#FF6B9D) e branco. Fonte: Poppins Bold. Tom jovem e descontraído. Evitar azul." },
+  { id:5, name:"Roberto Mendes", company:"Agência Sol",   email:"roberto@sol.com",  value:6700,  status:"perdido",    date:"2026-02-18", tag:"Web",      categoria:"lead",         briefing_padrao:"" },
+  { id:6, name:"Clara Nunes",    company:"Studio N",      email:"clara@n.com",      value:5800,  status:"fechado",    date:"2026-03-02", tag:"UI/UX",    categoria:"cliente_fixo", briefing_padrao:"Identidade clean e minimalista. Paleta: preto, branco e dourado (#D4AF37). Fonte: Playfair Display títulos, DM Sans corpo." },
+  { id:7, name:"Pedro Ramos",    company:"VisualLab",     email:"pedro@vl.com",     value:9200,  status:"proposta",   date:"2026-03-03", tag:"Branding", categoria:"lead",         briefing_padrao:"" },
 ];
 
 const initTasks = [
@@ -58,16 +63,7 @@ const initPortfolio = [
   { id:3, title:"Website — Brand Co",               url:"https://dribbble.com",tag:"Web",      year:"2024", month:"2024-06", value:6000,  cover:"🌐", description:"Landing page institucional e campanha digital." },
 ];
 
-// Simulated timer history (past days)
-const initTimerHistory = [
-  { date:"2026-03-04", seconds:27540 },
-  { date:"2026-03-03", seconds:32400 },
-  { date:"2026-03-02", seconds:18900 },
-  { date:"2026-02-28", seconds:25200 },
-  { date:"2026-02-27", seconds:28800 },
-  { date:"2026-02-26", seconds:21600 },
-  { date:"2026-02-25", seconds:30600 },
-];
+const initTimerHistory = [];
 
 const STATUS = {
   novo:       { label:"Novo",       color:C.teal   },
@@ -116,14 +112,19 @@ function useTimer(onSave) {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [goal] = useState(8 * 3600);
-  const ref = useRef(null);
-  const today = new Date().toISOString().split("T")[0];
+  const intervalRef = useRef(null);
+  const secondsRef = useRef(0); // ref para evitar stale closure no reset
+
+  // mantém secondsRef sempre atualizado
+  useEffect(() => { secondsRef.current = seconds; }, [seconds]);
 
   useEffect(() => {
-    if (running) ref.current = setInterval(() => setSeconds(s => s + 1), 1000);
-    else clearInterval(ref.current);
-    return () => clearInterval(ref.current);
+    if (running) intervalRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
+    else clearInterval(intervalRef.current);
+    return () => clearInterval(intervalRef.current);
   }, [running]);
+
+  const today = () => new Date().toISOString().split("T")[0];
 
   const fmt = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   const fmtH = s => {
@@ -132,18 +133,16 @@ function useTimer(onSave) {
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   };
 
-  const saveDay = (secs) => {
-    if (secs > 0) onSave(today, secs);
-  };
-
   const toggle = () => setRunning(r => !r);
   const reset = () => {
     setRunning(false);
-    saveDay(seconds);
+    const secs = secondsRef.current;
+    if (secs > 0) onSave(today(), secs);
     setSeconds(0);
+    secondsRef.current = 0;
   };
 
-  return { seconds, running, goal, fmt, fmtH, toggle, reset, today };
+  return { seconds, running, goal, fmt, fmtH, toggle, reset, today: today() };
 }
 
 // ─── Shared UI ─────────────────────────────────────────────────────────────────
@@ -445,16 +444,54 @@ function TimerHistoryView({ timerHistory, timer }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // CRM
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// BRIEFING EDITOR (inline, com auto-save)
+// ══════════════════════════════════════════════════════════════════════════════
+function BriefingEditor({ lead, onSave }) {
+  const [text, setText] = useState(lead.briefing_padrao||"");
+  const [saved, setSaved] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => { setText(lead.briefing_padrao||""); }, [lead.id]);
+
+  const handleChange = (v) => {
+    setText(v);
+    setSaved(false);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => { onSave(lead.id, v); setSaved(true); }, 800);
+  };
+
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
+      <textarea
+        value={text}
+        onChange={e=>handleChange(e.target.value)}
+        placeholder="Ex: Cores principais (#FFCC00, preto). Fonte: Montserrat Bold títulos, Lato corpo. Tom profissional e direto. Evitar elementos muito coloridos..."
+        style={{ flex:1, minHeight:160, background:"#0f0f1a", border:"1px solid #1e1e30", borderRadius:10, padding:"12px 14px", color:"#e2e8f0", fontSize:13, outline:"none", fontFamily:"inherit", resize:"none", lineHeight:1.7 }}
+      />
+      <div style={{ display:"flex", justifyContent:"flex-end", marginTop:6 }}>
+        <span style={{ color:saved?"#4ade80":"#64748b", fontSize:11 }}>{saved?"✓ Salvo":"Editando..."}</span>
+      </div>
+    </div>
+  );
+}
+
 function Leads({ leads, setLeads }) {
   const [vm, setVm] = useState("table");
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [search, setSearch] = useState("");
   const [fs, setFs] = useState("todos");
-  const E = { name:"", company:"", email:"", value:"", status:"novo", tag:"" };
+  const [fc, setFc] = useState("todos"); // filtro categoria
+  const [briefingId, setBriefingId] = useState(null); // drawer briefing
+  const E = { name:"", company:"", email:"", value:"", status:"novo", tag:"", categoria:"lead", briefing_padrao:"" };
   const [form, setForm] = useState(E);
 
-  const filtered = leads.filter(l=>(fs==="todos"||l.status===fs)&&(l.name.toLowerCase().includes(search.toLowerCase())||l.company.toLowerCase().includes(search.toLowerCase())));
+  const filtered = leads.filter(l=>
+    (fs==="todos"||l.status===fs) &&
+    (fc==="todos"||l.categoria===fc) &&
+    (l.name.toLowerCase().includes(search.toLowerCase())||l.company.toLowerCase().includes(search.toLowerCase()))
+  );
   const openAdd = (status="novo") => { setForm({...E,status}); setEditId(null); setModal(true); };
   const openEdit = l => { setForm({...l,value:String(l.value)}); setEditId(l.id); setModal(true); };
   const save = () => {
@@ -465,67 +502,159 @@ function Leads({ leads, setLeads }) {
   };
   const del = id => setLeads(ls=>ls.filter(l=>l.id!==id));
   const move = (id, status) => setLeads(ls=>ls.map(l=>l.id===id?{...l,status}:l));
+  const converter = id => setLeads(ls=>ls.map(l=>l.id===id?{...l,categoria:"cliente_fixo",status:l.status==="novo"?"fechado":l.status}:l));
+  const saveBriefing = (id, text) => setLeads(ls=>ls.map(l=>l.id===id?{...l,briefing_padrao:text}:l));
+
+  const briefingLead = leads.find(l=>l.id===briefingId);
+
+  const TotalFixo = leads.filter(l=>l.categoria==="cliente_fixo"&&l.status==="fechado").reduce((a,b)=>a+b.value,0);
+  const TotalLead  = leads.filter(l=>l.categoria==="lead"&&l.status==="fechado").reduce((a,b)=>a+b.value,0);
 
   return (
     <div style={{ padding:"28px 32px" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
+      {/* Drawer Briefing */}
+      {briefingLead && (
+        <div style={{ position:"fixed", inset:0, zIndex:900 }} onClick={()=>setBriefingId(null)}>
+          <div style={{ position:"absolute", right:0, top:0, bottom:0, width:420, background:C.surface, borderLeft:`1px solid ${C.border}`, padding:28, display:"flex", flexDirection:"column", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)" }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+              <div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                  <div style={{ width:36, height:36, borderRadius:10, background:`${C.accentGlow}22`, display:"flex", alignItems:"center", justifyContent:"center", color:C.accent, fontWeight:700, fontSize:15 }}>{briefingLead.name.charAt(0)}</div>
+                  <div>
+                    <div style={{ color:C.text, fontWeight:700, fontSize:16 }}>{briefingLead.name}</div>
+                    <div style={{ color:C.muted, fontSize:12 }}>{briefingLead.company}</div>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:6, marginTop:6 }}>
+                  <span style={{ background:`${(CATEGORIA[briefingLead.categoria]||CATEGORIA.lead).color}18`, color:(CATEGORIA[briefingLead.categoria]||CATEGORIA.lead).color, fontSize:11, padding:"2px 10px", borderRadius:99, fontWeight:700 }}>
+                    {(CATEGORIA[briefingLead.categoria]||CATEGORIA.lead).icon} {(CATEGORIA[briefingLead.categoria]||CATEGORIA.lead).label}
+                  </span>
+                  <span style={{ background:`${STATUS[briefingLead.status].color}18`, color:STATUS[briefingLead.status].color, fontSize:11, padding:"2px 10px", borderRadius:99, fontWeight:700 }}>{STATUS[briefingLead.status].label}</span>
+                </div>
+              </div>
+              <button onClick={()=>setBriefingId(null)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="close" s={18}/></button>
+            </div>
+
+            {/* Info rápida */}
+            <div style={{ background:C.card, borderRadius:12, padding:"13px 16px", marginBottom:18, border:`1px solid ${C.border}` }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <div><div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Valor</div><div style={{ color:C.green, fontWeight:700, fontSize:14 }}>R$ {briefingLead.value.toLocaleString("pt-BR")}</div></div>
+                <div><div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Tag</div><div style={{ color:C.teal, fontWeight:600, fontSize:13 }}>{briefingLead.tag}</div></div>
+                <div><div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Email</div><div style={{ color:C.text, fontSize:12 }}>{briefingLead.email}</div></div>
+                <div><div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Data</div><div style={{ color:C.text, fontSize:12 }}>{briefingLead.date}</div></div>
+              </div>
+            </div>
+
+            {/* Briefing */}
+            <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                <label style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>
+                  📋 Briefing Padrão da Marca
+                </label>
+                {briefingLead.categoria!=="cliente_fixo" && (
+                  <span style={{ color:C.yellow, fontSize:10 }}>⚠ converta para Cliente Fixo</span>
+                )}
+              </div>
+              <BriefingEditor lead={briefingLead} onSave={saveBriefing} />
+            </div>
+
+            {/* Ações */}
+            <div style={{ marginTop:18, display:"flex", flexDirection:"column", gap:8 }}>
+              {briefingLead.categoria!=="cliente_fixo" && (
+                <button onClick={()=>{converter(briefingLead.id);}} style={{ background:`linear-gradient(135deg,${C.teal}88,${C.teal})`, border:"none", borderRadius:10, padding:"11px 18px", color:"#fff", cursor:"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  ⭐ Converter em Cliente Fixo
+                </button>
+              )}
+              <button onClick={()=>{openEdit(briefingLead);setBriefingId(null);}} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 18px", color:C.text, cursor:"pointer", fontWeight:600, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                <Ico n="edit" s={13} c={C.muted}/> Editar dados
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
         <div>
-          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>CRM · Leads</h1>
-          <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>{leads.length} contatos · R$ {leads.filter(l=>l.status==="fechado").reduce((a,b)=>a+b.value,0).toLocaleString("pt-BR")} fechados</p>
+          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>CRM · Contatos</h1>
+          <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>{leads.length} contatos · <span style={{ color:C.teal }}>⭐ R$ {TotalFixo.toLocaleString("pt-BR")} (fixos)</span> · <span style={{ color:C.yellow }}>⚡ R$ {TotalLead.toLocaleString("pt-BR")} (leads)</span></p>
         </div>
         <div style={{ display:"flex", gap:12 }}>
           <Toggle val={vm} onChange={setVm} opts={[{v:"table",label:"Tabela",icon:"list"},{v:"kanban",label:"Kanban",icon:"kanban"}]}/>
-          <Btn onClick={()=>openAdd()}><Ico n="plus" s={14} c="#fff"/> Novo Lead</Btn>
+          <Btn onClick={()=>openAdd()}><Ico n="plus" s={14} c="#fff"/> Novo Contato</Btn>
         </div>
       </div>
+
+      {/* Filtros */}
       <div style={{ display:"flex", gap:10, marginBottom:18, flexWrap:"wrap" }}>
         <div style={{ position:"relative", flex:1, minWidth:200 }}>
           <div style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}><Ico n="search" s={14} c={C.muted}/></div>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar lead ou empresa..." style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 13px 9px 34px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar contato ou empresa..." style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 13px 9px 34px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
         </div>
-        <div style={{ display:"flex", gap:6 }}>
+        <div style={{ display:"flex", gap:5 }}>
+          {["todos","lead","cliente_fixo"].map(cat=>{
+            const cfg = cat==="todos" ? {label:"Todos",color:C.accent,icon:""} : CATEGORIA[cat];
+            return (
+              <button key={cat} onClick={()=>setFc(cat)} style={{ background:fc===cat?`${cfg.color}18`:C.card, border:`1px solid ${fc===cat?cfg.color:C.border}`, borderRadius:8, padding:"7px 13px", color:fc===cat?cfg.color:C.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                {cfg.icon} {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display:"flex", gap:5 }}>
           {["todos",...Object.keys(STATUS)].map(s=>(
-            <button key={s} onClick={()=>setFs(s)} style={{ background:fs===s?`${C.accent}18`:C.card, border:`1px solid ${fs===s?C.accent:C.border}`, borderRadius:8, padding:"8px 13px", color:fs===s?C.accent:C.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
-              {s==="todos"?"Todos":STATUS[s].label}
+            <button key={s} onClick={()=>setFs(s)} style={{ background:fs===s?`${C.accent}18`:C.card, border:`1px solid ${fs===s?C.accent:C.border}`, borderRadius:8, padding:"7px 12px", color:fs===s?C.accent:C.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+              {s==="todos"?"Status":STATUS[s].label}
             </button>
           ))}
         </div>
       </div>
+
       {vm==="table" ? (
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead><tr style={{ borderBottom:`1px solid ${C.border}` }}>
-              {["Contato","Empresa","Tag","Valor","Status","Data",""].map(h=>(
+              {["Contato","Empresa","Categoria","Tag","Valor","Status",""].map(h=>(
                 <th key={h} style={{ padding:"12px 18px", textAlign:"left", color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
-              {filtered.map((l,i)=>(
-                <tr key={l.id} style={{ borderBottom:i<filtered.length-1?`1px solid ${C.border}`:"none" }}
-                  onMouseEnter={e=>e.currentTarget.style.background=C.cardHover}
-                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                  <td style={{ padding:"13px 18px" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                      <div style={{ width:33, height:33, borderRadius:9, background:`${C.accentGlow}22`, display:"flex", alignItems:"center", justifyContent:"center", color:C.accent, fontWeight:700, fontSize:13 }}>{l.name.charAt(0)}</div>
-                      <div><div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{l.name}</div><div style={{ color:C.muted, fontSize:11 }}>{l.email}</div></div>
-                    </div>
-                  </td>
-                  <td style={{ padding:"13px 18px", color:C.muted, fontSize:13 }}>{l.company}</td>
-                  <td style={{ padding:"13px 18px" }}><span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:600 }}>{l.tag}</span></td>
-                  <td style={{ padding:"13px 18px", color:C.text, fontSize:13, fontWeight:700 }}>R$ {l.value.toLocaleString("pt-BR")}</td>
-                  <td style={{ padding:"13px 18px" }}><span style={{ background:`${STATUS[l.status].color}18`, color:STATUS[l.status].color, fontSize:11, padding:"4px 11px", borderRadius:99, fontWeight:600 }}>{STATUS[l.status].label}</span></td>
-                  <td style={{ padding:"13px 18px", color:C.muted, fontSize:12 }}>{l.date}</td>
-                  <td style={{ padding:"13px 18px" }}>
-                    <div style={{ display:"flex", gap:8 }}>
-                      <button onClick={()=>openEdit(l)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="edit" s={14}/></button>
-                      <button onClick={()=>del(l.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.red, padding:4 }}><Ico n="trash" s={14}/></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((l,i)=>{
+                const cat = CATEGORIA[l.categoria]||CATEGORIA.lead;
+                return (
+                  <tr key={l.id} style={{ borderBottom:i<filtered.length-1?`1px solid ${C.border}`:"none", cursor:"pointer" }}
+                    onClick={()=>setBriefingId(l.id)}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.cardHover}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{ padding:"13px 18px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <div style={{ width:33, height:33, borderRadius:9, background:`${cat.color}22`, display:"flex", alignItems:"center", justifyContent:"center", color:cat.color, fontWeight:700, fontSize:13 }}>{l.name.charAt(0)}</div>
+                        <div><div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{l.name}</div><div style={{ color:C.muted, fontSize:11 }}>{l.email}</div></div>
+                      </div>
+                    </td>
+                    <td style={{ padding:"13px 18px", color:C.muted, fontSize:13 }}>{l.company}</td>
+                    <td style={{ padding:"13px 18px" }}>
+                      <span style={{ background:`${cat.color}15`, color:cat.color, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>
+                        {cat.icon} {cat.label}
+                      </span>
+                      {l.briefing_padrao && <span style={{ marginLeft:6, fontSize:12 }} title="Briefing salvo">📋</span>}
+                    </td>
+                    <td style={{ padding:"13px 18px" }}><span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:600 }}>{l.tag}</span></td>
+                    <td style={{ padding:"13px 18px", color:C.text, fontSize:13, fontWeight:700 }}>R$ {l.value.toLocaleString("pt-BR")}</td>
+                    <td style={{ padding:"13px 18px" }}><span style={{ background:`${STATUS[l.status].color}18`, color:STATUS[l.status].color, fontSize:11, padding:"4px 11px", borderRadius:99, fontWeight:600 }}>{STATUS[l.status].label}</span></td>
+                    <td style={{ padding:"13px 18px" }} onClick={e=>e.stopPropagation()}>
+                      <div style={{ display:"flex", gap:8 }}>
+                        {l.categoria!=="cliente_fixo"&&<button onClick={()=>converter(l.id)} title="Converter em Cliente Fixo" style={{ background:`${C.teal}15`, border:`1px solid ${C.teal}30`, borderRadius:7, padding:"4px 8px", color:C.teal, cursor:"pointer", fontSize:11, fontWeight:700 }}>⭐</button>}
+                        <button onClick={()=>openEdit(l)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="edit" s={14}/></button>
+                        <button onClick={()=>del(l.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.red, padding:4 }}><Ico n="trash" s={14}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          {filtered.length===0&&<div style={{ padding:40, textAlign:"center", color:C.muted }}>Nenhum lead encontrado.</div>}
+          {filtered.length===0&&<div style={{ padding:40, textAlign:"center", color:C.muted }}>Nenhum contato encontrado.</div>}
         </div>
       ) : (
         <div style={{ display:"flex", gap:14, overflowX:"auto", paddingBottom:14 }}>
@@ -542,31 +671,45 @@ function Leads({ leads, setLeads }) {
                   <span style={{ color:C.muted, fontSize:11 }}>R$ {col.reduce((a,b)=>a+b.value,0).toLocaleString("pt-BR")}</span>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:10, minHeight:80 }}>
-                  {col.map(l=>(
-                    <div key={l.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"13px", borderLeft:`3px solid ${cfg.color}` }}
-                      onMouseEnter={e=>e.currentTarget.style.background=C.cardHover}
-                      onMouseLeave={e=>e.currentTarget.style.background=C.card}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                          <div style={{ width:27, height:27, borderRadius:7, background:`${C.accentGlow}22`, display:"flex", alignItems:"center", justifyContent:"center", color:C.accent, fontWeight:700, fontSize:12 }}>{l.name.charAt(0)}</div>
-                          <div><div style={{ color:C.text, fontSize:12, fontWeight:600 }}>{l.name}</div><div style={{ color:C.muted, fontSize:11 }}>{l.company}</div></div>
+                  {col.map(l=>{
+                    const cat = CATEGORIA[l.categoria]||CATEGORIA.lead;
+                    return (
+                      <div key={l.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"13px", borderLeft:`3px solid ${cfg.color}`, cursor:"pointer" }}
+                        onClick={()=>setBriefingId(l.id)}
+                        onMouseEnter={e=>e.currentTarget.style.background=C.cardHover}
+                        onMouseLeave={e=>e.currentTarget.style.background=C.card}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <div style={{ width:27, height:27, borderRadius:7, background:`${cat.color}22`, display:"flex", alignItems:"center", justifyContent:"center", color:cat.color, fontWeight:700, fontSize:12 }}>{l.name.charAt(0)}</div>
+                            <div>
+                              <div style={{ color:C.text, fontSize:12, fontWeight:600 }}>{l.name}</div>
+                              <div style={{ color:C.muted, fontSize:11 }}>{l.company}</div>
+                            </div>
+                          </div>
+                          <div style={{ display:"flex", gap:4 }} onClick={e=>e.stopPropagation()}>
+                            <button onClick={()=>openEdit(l)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:2 }}><Ico n="edit" s={12}/></button>
+                            <button onClick={()=>del(l.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.red, padding:2 }}><Ico n="trash" s={12}/></button>
+                          </div>
                         </div>
-                        <div style={{ display:"flex", gap:4 }}>
-                          <button onClick={()=>openEdit(l)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:2 }}><Ico n="edit" s={12}/></button>
-                          <button onClick={()=>del(l.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.red, padding:2 }}><Ico n="trash" s={12}/></button>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                          <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+                            <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:10, padding:"2px 8px", borderRadius:99, fontWeight:600 }}>{l.tag}</span>
+                            <span style={{ background:`${cat.color}15`, color:cat.color, fontSize:10, padding:"2px 7px", borderRadius:99, fontWeight:700 }}>{cat.icon}</span>
+                            {l.briefing_padrao && <span style={{ fontSize:11 }} title="Briefing salvo">📋</span>}
+                          </div>
+                          <span style={{ color:C.text, fontWeight:700, fontSize:12 }}>R$ {l.value.toLocaleString("pt-BR")}</span>
+                        </div>
+                        <div style={{ display:"flex", gap:4, flexWrap:"wrap" }} onClick={e=>e.stopPropagation()}>
+                          {l.categoria!=="cliente_fixo"&&(
+                            <button onClick={()=>converter(l.id)} style={{ background:`${C.teal}10`, border:`1px solid ${C.teal}28`, borderRadius:6, padding:"2px 7px", color:C.teal, fontSize:10, cursor:"pointer", fontWeight:700 }}>⭐ Converter</button>
+                          )}
+                          {Object.keys(STATUS).filter(s=>s!==status).map(s=>(
+                            <button key={s} onClick={()=>move(l.id,s)} style={{ background:`${STATUS[s].color}10`, border:`1px solid ${STATUS[s].color}28`, borderRadius:6, padding:"2px 7px", color:STATUS[s].color, fontSize:10, cursor:"pointer", fontWeight:600 }}>→ {STATUS[s].label}</button>
+                          ))}
                         </div>
                       </div>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                        <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:10, padding:"2px 8px", borderRadius:99, fontWeight:600 }}>{l.tag}</span>
-                        <span style={{ color:C.text, fontWeight:700, fontSize:12 }}>R$ {l.value.toLocaleString("pt-BR")}</span>
-                      </div>
-                      <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                        {Object.keys(STATUS).filter(s=>s!==status).map(s=>(
-                          <button key={s} onClick={()=>move(l.id,s)} style={{ background:`${STATUS[s].color}10`, border:`1px solid ${STATUS[s].color}28`, borderRadius:6, padding:"2px 7px", color:STATUS[s].color, fontSize:10, cursor:"pointer", fontWeight:600 }}>→ {STATUS[s].label}</button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <button onClick={()=>openAdd(status)} style={{ background:`${cfg.color}08`, border:`1px dashed ${cfg.color}40`, borderRadius:10, padding:"10px", color:cfg.color, cursor:"pointer", fontSize:12, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
                     <Ico n="plus" s={12} c={cfg.color}/> Adicionar
                   </button>
@@ -576,7 +719,7 @@ function Leads({ leads, setLeads }) {
           })}
         </div>
       )}
-      <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Editar Lead":"Novo Lead"}>
+      <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Editar Contato":"Novo Contato"}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
           <Field label="Nome" value={form.name} onChange={v=>setForm(f=>({...f,name:v}))}/>
           <Field label="Empresa" value={form.company} onChange={v=>setForm(f=>({...f,company:v}))}/>
@@ -585,12 +728,18 @@ function Leads({ leads, setLeads }) {
           <Field label="Tag / Serviço" value={form.tag} onChange={v=>setForm(f=>({...f,tag:v}))}/>
           <Field label="Status" value={form.status} onChange={v=>setForm(f=>({...f,status:v}))} options={Object.entries(STATUS).map(([k,v])=>({value:k,label:v.label}))}/>
         </div>
-        <Btn onClick={save} full>{editId?"Salvar alterações":"Adicionar Lead"}</Btn>
+        <Field label="Categoria" value={form.categoria} onChange={v=>setForm(f=>({...f,categoria:v}))} options={Object.entries(CATEGORIA).map(([k,v])=>({value:k,label:`${v.icon} ${v.label}`}))}/>
+        {form.categoria==="cliente_fixo" && (
+          <div style={{ marginBottom:14 }}>
+            <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>📋 Briefing Padrão da Marca</label>
+            <textarea value={form.briefing_padrao||""} onChange={e=>setForm(f=>({...f,briefing_padrao:e.target.value}))} placeholder="Ex: Cores principais (#FFCC00, #000). Fontes: Montserrat Bold títulos, Lato corpo. Tom de voz: profissional e direto. Evitar elementos muito coloridos..." rows={4} style={{ background:"#0f0f1a", border:"1px solid #1e1e30", borderRadius:9, padding:"10px 13px", color:"#e2e8f0", fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+          </div>
+        )}
+        <Btn onClick={save} full>{editId?"Salvar alterações":"Adicionar Contato"}</Btn>
       </Modal>
     </div>
   );
 }
-
 // ══════════════════════════════════════════════════════════════════════════════
 // AGENDA
 // ══════════════════════════════════════════════════════════════════════════════
