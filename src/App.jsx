@@ -28,9 +28,9 @@ const C = {
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const MONTHS_SHORT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
-const NOW_MONTH = "2026-03";
-const NOW_YEAR  = 2026;
-const NOW_MO    = 2; // index 0-based = March
+const NOW_MONTH = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
+const NOW_YEAR  = new Date().getFullYear();
+const NOW_MO    = new Date().getMonth();
 
 // ─── Initial Data ─────────────────────────────────────────────────────────────
 const CATEGORIA = {
@@ -47,30 +47,11 @@ const STATUS_DEMANDA = {
 };
 const KANBAN_COLS = ["triagem","em_criacao","revisao","aprovacao","finalizado"];
 
-const initLeads = [
-  { id:1, name:"Mateus Costa",   company:"Pixel Studio",  email:"mateus@pixel.io",  value:4500,  status:"novo",       date:"2026-03-01", tag:"Design",   categoria:"lead",         briefing_padrao:"" },
-  { id:2, name:"Fernanda Lima",  company:"Brand Co",      email:"fer@brandco.com",  value:12000, status:"negociando", date:"2026-02-28", tag:"Branding", categoria:"lead",         briefing_padrao:"" },
-  { id:3, name:"Lucas Andrade",  company:"Tech Venture",  email:"lucas@tv.com",     value:8500,  status:"proposta",   date:"2026-02-25", tag:"UI/UX",    categoria:"lead",         briefing_padrao:"" },
-  { id:4, name:"Ana Beatriz",    company:"Startup XYZ",   email:"ana@xyz.com",      value:3200,  status:"fechado",    date:"2026-02-20", tag:"Logo",     categoria:"cliente_fixo", briefing_padrao:"Cores: rosa (#FF6B9D) e branco. Fonte: Poppins Bold. Tom jovem e descontraído. Evitar azul." },
-  { id:5, name:"Roberto Mendes", company:"Agência Sol",   email:"roberto@sol.com",  value:6700,  status:"perdido",    date:"2026-02-18", tag:"Web",      categoria:"lead",         briefing_padrao:"" },
-  { id:6, name:"Clara Nunes",    company:"Studio N",      email:"clara@n.com",      value:5800,  status:"fechado",    date:"2026-03-02", tag:"UI/UX",    categoria:"cliente_fixo", briefing_padrao:"Identidade clean e minimalista. Paleta: preto, branco e dourado (#D4AF37). Fonte: Playfair Display títulos, DM Sans corpo." },
-  { id:7, name:"Pedro Ramos",    company:"VisualLab",     email:"pedro@vl.com",     value:9200,  status:"proposta",   date:"2026-03-03", tag:"Branding", categoria:"lead",         briefing_padrao:"" },
-];
+const initLeads = [];
 
-const initTasks = [
-  { id:1, title:"Apresentar proposta para Brand Co",        time:"09:00", date:"2026-03-05", done:false, priority:"alta",  type:"reuniao" },
-  { id:2, title:"Entregar identidade visual Tech Venture",  time:"11:30", date:"2026-03-05", done:false, priority:"alta",  type:"entrega" },
-  { id:3, title:"Revisão de mockups Pixel Studio",          time:"14:00", date:"2026-03-05", done:true,  priority:"media", type:"tarefa"  },
-  { id:4, title:"Call de alinhamento com Lucas",            time:"16:00", date:"2026-03-06", done:false, priority:"media", type:"reuniao" },
-  { id:5, title:"Atualizar portfólio",                      time:"18:00", date:"2026-03-07", done:false, priority:"baixa", type:"tarefa"  },
-  { id:6, title:"Enviar briefing Agência Sol",              time:"10:00", date:"2026-03-10", done:false, priority:"alta",  type:"entrega" },
-];
+const initTasks = [];
 
-const initPortfolio = [
-  { id:1, title:"Identidade Visual — Pixel Studio", url:"https://behance.net", tag:"Branding", year:"2025", month:"2025-11", value:4500,  cover:"🎨", description:"Rebranding completo com sistema de identidade visual." },
-  { id:2, title:"UI Kit — Tech Venture App",        url:"https://figma.com",   tag:"UI/UX",    year:"2025", month:"2025-09", value:8500,  cover:"📱", description:"Design system com mais de 200 componentes." },
-  { id:3, title:"Website — Brand Co",               url:"https://dribbble.com",tag:"Web",      year:"2024", month:"2024-06", value:6000,  cover:"🌐", description:"Landing page institucional e campanha digital." },
-];
+const initPortfolio = [];
 
 const initTimerHistory = [];
 const initDemandas = [];
@@ -515,7 +496,7 @@ function BriefingEditor({ lead, onSave }) {
   );
 }
 
-function Leads({ leads, setLeads }) {
+function Leads({ leads, setLeads, demandas, setDemandas }) {
   const [vm, setVm] = useState("table");
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -539,7 +520,10 @@ function Leads({ leads, setLeads }) {
     else setLeads(ls=>[...ls,{...lead,id:Date.now()}]);
     setModal(false);
   };
-  const del = id => setLeads(ls=>ls.filter(l=>l.id!==id));
+  const del = id => {
+    setLeads(ls => ls.filter(l => l.id !== id));
+    if (setDemandas) setDemandas(ds => ds.filter(d => d.cliente_id !== id));
+  };
   const move = (id, status) => setLeads(ls=>ls.map(l=>l.id===id?{...l,status}:l));
   const converter = id => setLeads(ls=>ls.map(l=>l.id===id?{...l,categoria:"cliente_fixo",status:l.status==="novo"?"fechado":l.status}:l));
   const saveBriefing = (id, text) => setLeads(ls=>ls.map(l=>l.id===id?{...l,briefing_padrao:text}:l));
@@ -1422,10 +1406,7 @@ function Notes({ notes, setNotes }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // APP ROOT
 // ══════════════════════════════════════════════════════════════════════════════
-const INIT_NOTES = [
-  { id:1, title:"Briefing Brand Co", content:"Cliente quer rebranding completo. Cores: azul + dourado. Público 30-50 anos.", date:"2026-03-04" },
-  { id:2, title:"Referências UI Kit", content:"Ver Material 3, Apple HIG e Radix UI para o projeto Tech Venture.", date:"2026-03-03" },
-];
+const INIT_NOTES = [];
 
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1470,6 +1451,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
   };
   const del = id => {
     setLeads(ls => ls.filter(l => l.id !== id));
+    setDemandas(ds => ds.filter(d => d.cliente_id !== id));
     setSelId(clientes.find(c => c.id !== id)?.id || null);
   };
   const updateField = (id, field, val) => {
@@ -2637,7 +2619,7 @@ export default function App() {
           </div>
           {view==="dashboard"      && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas}/>}
           {view==="kanban"         && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
-          {view==="leads"          && <Leads leads={leads} setLeads={setLeads}/>}
+          {view==="leads"          && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="clientes_fixos" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
           {view==="pedido"         && <FormularioPedido leads={leads} setDemandas={setDemandas} setTasks={setTasks}/>}
           {view==="agenda"         && <Agenda tasks={tasks} setTasks={setTasks}/>}
