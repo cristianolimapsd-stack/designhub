@@ -1353,7 +1353,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
     updateField(sel.id, "projeto_ids", projIds.filter(id => id !== projId));
   };
 
-  const totalPago = sel ? (parseFloat(sel.value)||0) : 0;
+  const totalPago = sel ? demandas.filter(d => d.cliente_id === sel.id && d.status === "finalizado").reduce((a,b) => a + (parseFloat(b.valor)||0), 0) : 0;
 
   const parseCores = (str) => {
     if (!str) return [];
@@ -1397,7 +1397,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
         <div>
           <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>⭐ Clientes Ativos</h1>
           <p style={{ color:C.muted, margin:"4px 0 0", fontSize:13 }}>
-            {clientes.length} cliente{clientes.length!==1?"s":""} · R$ {clientes.reduce((a,b)=>a+(parseFloat(b.value)||0),0).toLocaleString("pt-BR")} em receita total
+            {clientes.length} cliente{clientes.length!==1?"s":""} · R$ {demandas.filter(d => clientes.find(c=>c.id===d.cliente_id) && d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0).toLocaleString("pt-BR")} em receita total
           </p>
         </div>
         <Btn onClick={openAdd}><Ico n="plus" s={14} c="#fff"/> Novo Cliente</Btn>
@@ -1440,7 +1440,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                       <span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"2px 9px", borderRadius:99, fontWeight:600 }}>{c.tag||"—"}</span>
                       {nDemandas>0 && <span style={{ background:`${C.accent}15`, color:C.accent, fontSize:11, padding:"2px 9px", borderRadius:99, fontWeight:600 }}>{nDemandas} 📋</span>}
                     </div>
-                    <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {(parseFloat(c.value)||0).toLocaleString("pt-BR")}</span>
+                    <span style={{ color:C.green, fontSize:13, fontWeight:700 }}>R$ {demandas.filter(d=>d.cliente_id===c.id&&d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0).toLocaleString("pt-BR")}</span>
                   </div>
                 </div>
               );
@@ -1469,8 +1469,9 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8 }}>
                     <div style={{ textAlign:"right" }}>
-                      <div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em" }}>Valor total</div>
+                      <div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em" }}>Receita (demandas finalizadas)</div>
                       <div style={{ color:C.green, fontWeight:800, fontSize:22, fontFamily:"'Syne',sans-serif" }}>R$ {totalPago.toLocaleString("pt-BR")}</div>
+                      <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{demandas.filter(d=>d.cliente_id===sel.id&&d.status==="finalizado").length} job{demandas.filter(d=>d.cliente_id===sel.id&&d.status==="finalizado").length!==1?"s":""} finalizado{demandas.filter(d=>d.cliente_id===sel.id&&d.status==="finalizado").length!==1?"s":""}</div>
                     </div>
                     <div style={{ display:"flex", gap:8 }}>
                       {sel.redes && (
@@ -1712,7 +1713,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
           <Field label="Email" value={form.email} onChange={v=>setForm(f=>({...f,email:v}))} type="email"/>
           <Field label="Telefone / WhatsApp" value={form.telefone||""} onChange={v=>setForm(f=>({...f,telefone:v}))} placeholder="(11) 99999-9999"/>
           <Field label="Tag / Serviço" value={form.tag} onChange={v=>setForm(f=>({...f,tag:v}))}/>
-          <Field label="Valor total (R$)" value={form.value||""} onChange={v=>setForm(f=>({...f,value:v}))} type="number"/>
+          {/* Valor total calculado automaticamente pelas demandas finalizadas */}
         </div>
         <Field label="Redes sociais / Site (URL)" value={form.redes||""} onChange={v=>setForm(f=>({...f,redes:v}))} placeholder="https://instagram.com/..."/>
         <Field label="Fontes (separadas por vírgula)" value={form.fontes||""} onChange={v=>setForm(f=>({...f,fontes:v}))} placeholder="Montserrat Bold, Lato Regular"/>
@@ -1818,16 +1819,40 @@ function BriefingInline({ clienteId, value, onSave }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // FORMULÁRIO PÚBLICO DE PEDIDOS
 // ══════════════════════════════════════════════════════════════════════════════
-function FormularioPedido({ leads, setDemandas, setTasks }) {
+function FormularioPedido({ setDemandas, setTasks }) {
   // Detecta cliente pelo hash: #pedido/slug/id
   const hash = window.location.hash;
   const match = hash.match(/#pedido\/[^/]+\/(\d+)/);
   const clienteId = match ? parseInt(match[1]) : null;
-  const cliente = leads.find(l => l.id === clienteId && l.categoria === "cliente_fixo");
 
+  const [cliente, setCliente] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ titulo:"", descricao:"", prazo:"" });
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState(false);
+
+  // Busca o cliente DIRETO do Supabase (não depende do localStorage do designer)
+  useEffect(() => {
+    if (!clienteId) { setLoading(false); return; }
+    async function buscar() {
+      try {
+        if (dbReady) {
+          const { data } = await supabase
+            .from("leads")
+            .select("*")
+            .eq("id", clienteId)
+            .eq("categoria", "cliente_fixo")
+            .single();
+          setCliente(data || null);
+        }
+      } catch(e) {
+        setCliente(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    buscar();
+  }, [clienteId]);
 
   const enviar = async () => {
     if (!form.titulo || !cliente) { setErro(true); return; }
@@ -1841,24 +1866,20 @@ function FormularioPedido({ leads, setDemandas, setTasks }) {
       cliente_id: cliente.id,
       data_criacao: new Date().toISOString().split("T")[0],
     };
-    setDemandas(ds => [...ds, nova]);
-    if (form.prazo) {
-      setTasks(ts => [...ts, {
-        id: Date.now()+1,
-        title: `📋 ${form.titulo} · ${cliente.name}`,
-        time: "09:00",
-        date: form.prazo,
-        done: false,
-        priority: "alta",
-        type: "entrega",
-      }]);
+    // Salva direto no Supabase (fonte da verdade para o designer ver)
+    if (dbReady) {
+      try { await supabase.from("demandas").insert([{ ...nova, id: undefined }]); } catch(e) {}
     }
-    // Salvar no Supabase diretamente se disponível
-    if (typeof supabase !== "undefined" && supabase) {
-      try { await supabase.from("demandas").insert([nova]); } catch(e) {}
-    }
+    // Atualiza estado local também (se o designer estiver com o app aberto)
+    if (setDemandas) setDemandas(ds => [...ds, nova]);
     setEnviado(true);
   };
+
+  if (loading) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ color:C.muted, fontSize:16 }}>Carregando...</div>
+    </div>
+  );
 
   if (!cliente) return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -2071,6 +2092,21 @@ export default function App() {
     { id:"notes",           label:"Notas",             icon:"note",      sec:"criativo"  },
   ];
   const secs = [{ id:"principal", label:"Principal" },{ id:"gestao", label:"Gestão" },{ id:"criativo", label:"Criativo" }];
+
+  // Rota pública: renderiza só o formulário, sem sidebar
+  if (view === "pedido") {
+    return (
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+          *{box-sizing:border-box;margin:0;padding:0;}
+          body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;}
+          input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5);}
+        `}</style>
+        <FormularioPedido setDemandas={setDemandas} setTasks={setTasks}/>
+      </>
+    );
+  }
 
   return (
     <>
