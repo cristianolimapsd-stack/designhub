@@ -117,18 +117,57 @@ function Ico({ n, s=16, c="currentColor" }) {
 
 // ─── Timer Hook ────────────────────────────────────────────────────────────────
 function useTimer(onSave) {
-  const [seconds, setSeconds] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [goal] = useState(8 * 3600);
+  // Persiste estado no localStorage para sobreviver recarregamentos
+  const todayKey = new Date().toISOString().split("T")[0];
+  const stored = (() => { try { return JSON.parse(localStorage.getItem("dh_timer_state")||"{}"); } catch { return {}; } })();
+  // Se o state salvo é de hoje, restaura; senão começa do zero
+  const initSecs   = stored.date === todayKey ? (stored.seconds || 0) : 0;
+  const initRun    = stored.date === todayKey ? (stored.running || false) : false;
+  const initStart  = stored.date === todayKey ? (stored.startedAt || null) : null;
+
+  const [seconds,  setSeconds]  = useState(() => {
+    // Se estava rodando, calcula o tempo que passou desde que salvou
+    if (initRun && initStart) {
+      const elapsed = Math.floor((Date.now() - initStart) / 1000);
+      return initSecs + elapsed;
+    }
+    return initSecs;
+  });
+  const [running,  setRunning]  = useState(initRun);
+  const [goal]                  = useState(8 * 3600);
   const intervalRef = useRef(null);
-  const secondsRef = useRef(0); // ref para evitar stale closure no reset
+  const secondsRef  = useRef(seconds);
+  const startedAtRef = useRef(initRun ? (initStart || Date.now()) : null);
 
   // mantém secondsRef sempre atualizado
   useEffect(() => { secondsRef.current = seconds; }, [seconds]);
 
+  // Persiste estado a cada tick
   useEffect(() => {
-    if (running) intervalRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
-    else clearInterval(intervalRef.current);
+    try {
+      localStorage.setItem("dh_timer_state", JSON.stringify({
+        date: todayKey,
+        seconds: secondsRef.current,
+        running,
+        startedAt: running ? (startedAtRef.current || Date.now()) : null,
+      }));
+    } catch {}
+  }, [seconds, running]);
+
+  useEffect(() => {
+    if (running) {
+      if (!startedAtRef.current) startedAtRef.current = Date.now();
+      // Usa timestamp real para evitar drift do setInterval
+      const startSecs = secondsRef.current;
+      const startTime = Date.now();
+      intervalRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        setSeconds(startSecs + elapsed);
+      }, 500); // 500ms para ser mais responsivo
+    } else {
+      clearInterval(intervalRef.current);
+      startedAtRef.current = null;
+    }
     return () => clearInterval(intervalRef.current);
   }, [running]);
 
@@ -142,15 +181,19 @@ function useTimer(onSave) {
   };
 
   const toggle = () => setRunning(r => !r);
+
   const reset = () => {
     setRunning(false);
+    clearInterval(intervalRef.current);
     const secs = secondsRef.current;
     if (secs > 0) onSave(today(), secs);
     setSeconds(0);
     secondsRef.current = 0;
+    startedAtRef.current = null;
+    try { localStorage.removeItem("dh_timer_state"); } catch {}
   };
 
-  return { seconds, running, goal, fmt, fmtH, toggle, reset, today: today() };
+  return { seconds, running, goal, dailyGoal: goal, fmt, fmtH, toggle, reset, today: today() };
 }
 
 // ─── Shared UI ─────────────────────────────────────────────────────────────────
