@@ -2567,47 +2567,52 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
 
-  // ── Sync: reconstrói demandas vinculadas a partir do Supabase no boot ──────
+  // ── Sync boot: Kanban é a fonte de verdade ───────────────────────────────────
+  // Regra: localStorage/Kanban manda. Supabase recebe as ordens, não dá.
+  // No boot: empurra status do Kanban → Supabase. Adiciona solicitações novas ao Kanban.
   useEffect(() => {
-    async function syncDemandas() {
+    async function syncBoot() {
       try {
+        const cur = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
+        const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}");
+
+        // 1. Para cada demanda com solicitacao_id, empurra status atual → Supabase
+        for (const d of cur) {
+          if (d.solicitacao_id) {
+            supabase.from("solicitacoes").update({ status: d.status }).eq("id", Number(d.solicitacao_id));
+          }
+        }
+
+        // 2. Busca solicitações do Supabase que ainda NÃO estão no Kanban e adiciona
         const { data: solics } = await supabase.from("solicitacoes").select("*");
-        if (!solics || solics.length === 0) return;
-        setDemandas(current => {
-          const cur = Array.isArray(current) ? current : [];
-          // Ids de solicitações já no kanban
-          const solicIdsExistentes = new Set(cur.filter(d=>d.solicitacao_id).map(d=>String(d.solicitacao_id)));
-          // Atualiza status de demandas existentes
-          const updated = cur.map(d => {
-            if (!d.solicitacao_id) return d;
-            const s = solics.find(s=>String(s.id)===String(d.solicitacao_id));
-            return s ? {...d, status: s.status} : d;
-          });
-          // Adiciona demandas para solicitações que não estão no kanban
-          const novas = solics
-            .filter(s => !solicIdsExistentes.has(String(s.id)) && s.status !== "pendente")
-            .map(s => ({
-              id: Date.now() + Math.random(),
-              titulo: s.tipo || "Solicitação",
-              descricao: s.descricao || "",
-              prazo: s.prazo || "",
-              valor: 0,
-              status: s.status,
-              cliente_id: Number(s.cliente_id) || null,
-              tag: s.tipo || "Solicitação",
-              solicitacao_id: s.id,
-              data_criacao: (s.created_at||"").split("T")[0],
-            }));
-          if (novas.length === 0 && JSON.stringify(updated) === JSON.stringify(cur)) return cur;
-          // Atualiza mapa kanban
-          const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+        if (!solics) return;
+        const solicIdsExistentes = new Set(cur.filter(d=>d.solicitacao_id).map(d=>String(d.solicitacao_id)));
+        const novas = solics
+          .filter(s => !solicIdsExistentes.has(String(s.id)) && s.status !== "pendente")
+          .map(s => ({
+            id: Date.now() + Math.floor(Math.random()*10000),
+            titulo: s.tipo || "Solicitação",
+            descricao: s.descricao || "",
+            prazo: s.prazo || "",
+            valor: 0,
+            status: s.status,
+            cliente_id: Number(s.cliente_id) || null,
+            tag: s.tipo || "Solicitação",
+            solicitacao_id: s.id,
+            data_criacao: (s.created_at||"").split("T")[0],
+          }));
+
+        if (novas.length > 0) {
           novas.forEach(d => { kanbanMap[String(d.solicitacao_id)] = d.id; });
           localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
-          return [...updated, ...novas];
-        });
-      } catch(e) { console.error("syncDemandas:", e); }
+          setDemandas(prev => {
+            const p = Array.isArray(prev) ? prev : [];
+            return [...p, ...novas];
+          });
+        }
+      } catch(e) { console.error("syncBoot:", e); }
     }
-    syncDemandas();
+    syncBoot();
   }, []);
 
   // ── Notificações de solicitações novas ─────────────────────────────────────
