@@ -1927,6 +1927,8 @@ function PortalCliente({ leads, setDemandas }) {
   const [kanbanIds, setKanbanIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}"); } catch { return {}; }
   });
+  const [filtroData, setFiltroData] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("");
 
   // Sincronização automática via move() no Kanban — não precisa de botão manual
   const cliente = clientes.find(c=>String(c.id)===selCli);
@@ -1944,12 +1946,13 @@ function PortalCliente({ leads, setDemandas }) {
       .then(({ data }) => { setSolic(data || []); setLoading(false); });
   }, [selCli]);
 
-  useEffect(() => { carregarSolic(); }, [carregarSolic]);
-
-  // Recarrega automaticamente quando Kanban deletar uma demanda vinculada
   useEffect(() => {
-    window.addEventListener("solic_changed", carregarSolic);
-    return () => window.removeEventListener("solic_changed", carregarSolic);
+    carregarSolic();
+    // Polling a cada 10s + escuta evento do Kanban
+    const interval = setInterval(carregarSolic, 10000);
+    const handler = () => setTimeout(carregarSolic, 300);
+    window.addEventListener("solic_changed", handler);
+    return () => { clearInterval(interval); window.removeEventListener("solic_changed", handler); };
   }, [carregarSolic]);
 
   async function salvarResposta(id) {
@@ -2020,9 +2023,34 @@ function PortalCliente({ leads, setDemandas }) {
         </div>
       )}
 
-      {solic.length > 0 && (
-        <div style={{ display:"flex", flexDirection:"column", gap:12, marginTop:8 }}>
-          {solic.map(s => {
+      {solic.length > 0 && (() => {
+        const solicFiltradas = solic.filter(s => {
+          const dataOk = !filtroData || (s.created_at||"").startsWith(filtroData);
+          const statusOk = !filtroStatus || s.status === filtroStatus;
+          return dataOk && statusOk;
+        });
+        const diasUnicos = [...new Set(solic.map(s => (s.created_at||"").split("T")[0]))].sort().reverse();
+        return (
+        <>
+        <div style={{ display:"flex", gap:10, marginTop:12, marginBottom:4, flexWrap:"wrap", alignItems:"center" }}>
+          <select value={filtroData} onChange={e=>setFiltroData(e.target.value)} style={{ background:C.card, border:`1px solid ${filtroData?C.accent:C.border}`, borderRadius:9, padding:"7px 12px", color:filtroData?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+            <option value="">📅 Todos os dias</option>
+            {diasUnicos.map(d => <option key={d} value={d}>{new Date(d+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"numeric",month:"short"})}</option>)}
+          </select>
+          <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ background:C.card, border:`1px solid ${filtroStatus?C.accent:C.border}`, borderRadius:9, padding:"7px 12px", color:filtroStatus?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+            <option value="">🏷 Todos os status</option>
+            {Object.entries(STATUS_CFG).map(([k,v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+          </select>
+          {(filtroData||filtroStatus) && (
+            <button onClick={()=>{setFiltroData("");setFiltroStatus("");}} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 12px", color:C.muted, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✕ Limpar</button>
+          )}
+          <span style={{ color:C.muted, fontSize:12, marginLeft:"auto" }}>{solicFiltradas.length} de {solic.length} solicitação{solic.length!==1?"ões":""}</span>
+        </div>
+        {solicFiltradas.length === 0 && (
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:24, textAlign:"center", color:C.muted, fontSize:13 }}>Nenhuma solicitação com esse filtro.</div>
+        )}
+        <div style={{ display:"flex", flexDirection:"column", gap:12, marginTop:4 }}>
+          {solicFiltradas.map(s => {
             const cfg = STATUS_CFG[s.status] || STATUS_CFG.pendente;
             const open = editId === s.id;
             const jaNoKanban = !!kanbanIds[s.id];
@@ -2215,14 +2243,19 @@ function PortalPublicoPage() {
   const [acao, setAcao] = useState({}); // { [id]: "aprovando"|"ajustando" }
   const [ajusteText, setAjusteText] = useState({});
 
+  const carregarPortal = async () => {
+    try {
+      const { data } = await supabase.from("solicitacoes").select("*").eq("cliente_id", clienteId).order("created_at", { ascending:false });
+      setSolic(data || []);
+    } catch {}
+    setLoading(false);
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await supabase.from("solicitacoes").select("*").eq("cliente_id", clienteId).order("created_at", { ascending:false });
-        setSolic(data || []);
-      } catch {}
-      setLoading(false);
-    })();
+    carregarPortal();
+    // Atualiza a cada 15 segundos automaticamente
+    const interval = setInterval(carregarPortal, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   async function aprovar(id) {
