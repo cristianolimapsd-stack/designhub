@@ -1241,13 +1241,10 @@ function Kanban({ demandas, setDemandas, leads }) {
   };
   const move = (id, status) => {
     setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
-    // Sincroniza status da solicitação vinculada
+    // Usa kanban status direto no supabase — portal espelha exatamente
     const demanda = demandas.find(d=>d.id===id);
     if (demanda?.solicitacao_id) {
-      const solStatus = status === "aprovacao" ? "aprovacao"
-        : status === "finalizado" ? "finalizado"
-        : "em_andamento";
-      supabase.from("solicitacoes").update({ status: solStatus }).eq("id", demanda.solicitacao_id);
+      supabase.from("solicitacoes").update({ status }).eq("id", String(demanda.solicitacao_id));
     }
   };
   const nomeCliente = (id) => clientes.find(c=>String(c.id)===String(id))?.name||"";
@@ -1515,7 +1512,11 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
     setEditDemId(null);
   };
   const delDem = id => { if(!window.confirm("Excluir demanda?")) return; setDemandas(ds=>ds.filter(d=>d.id!==id)); };
-  const moveDem = (id, status) => setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
+  const moveDem = (id, status) => {
+    setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
+    const dem = demandas.find(d=>d.id===id);
+    if (dem?.solicitacao_id) supabase.from("solicitacoes").update({ status }).eq("id", String(dem.solicitacao_id));
+  };
   const openEditDem = d => { setFormDem({titulo:d.titulo,descricao:d.descricao||"",prazo:d.prazo||"",valor:String(d.valor||""),status:d.status,tag:d.tag||""}); setEditDemId(d.id); setModalDem(true); };
   return (
     <div style={{ padding:"28px 32px" }}>
@@ -1852,18 +1853,21 @@ function PortalCliente({ leads, setDemandas }) {
     setKanbanIds(updated);
     localStorage.setItem("dh_solic_kanban", JSON.stringify(updated));
     // Atualiza status da solicitação
-    supabase.from("solicitacoes").update({ status:"em_andamento" }).eq("id", s.id);
-    setSolic(prev => prev.map(x => x.id===s.id ? {...x, status:"em_andamento"} : x));
+    supabase.from("solicitacoes").update({ status:"triagem" }).eq("id", String(s.id));
+    setSolic(prev => prev.map(x => x.id===s.id ? {...x, status:"triagem"} : x));
     alert(`✅ Adicionado ao Kanban em Triagem!`);
   }
 
   const STATUS_CFG = {
-    pendente:      { label:"Aguardando",   color:"#f59e0b", icon:"⏳" },
-    em_andamento:  { label:"No Kanban",    color:"#06b6d4", icon:"⚙️" },
-    aprovacao:     { label:"Aprovação",    color:"#fb923c", icon:"👀" },
-    ajustes:       { label:"Ajustes",      color:"#ef4444", icon:"🔄" },
-    finalizado:    { label:"Finalizado",   color:"#10b981", icon:"✅" },
-    cancelado:     { label:"Cancelado",    color:"#64748b", icon:"❌" },
+    pendente:     { label:"Aguardando",    color:"#f59e0b", icon:"⏳" },
+    triagem:      { label:"Triagem",       color:"#94a3b8", icon:"📥" },
+    agenda:       { label:"Agenda",        color:"#818cf8", icon:"📆" },
+    em_criacao:   { label:"Em criação",    color:"#a78bfa", icon:"✏️"  },
+    revisao:      { label:"Em revisão",    color:"#38bdf8", icon:"🔍" },
+    aprovacao:    { label:"Aprovação",     color:"#fb923c", icon:"👀" },
+    ajustes:      { label:"Ajustes",       color:"#ef4444", icon:"🔄" },
+    finalizado:   { label:"Finalizado",    color:"#10b981", icon:"✅" },
+    cancelado:    { label:"Cancelado",     color:"#64748b", icon:"❌" },
   };
   const statusOpts = Object.entries(STATUS_CFG).map(([v,c])=>({value:v, label:`${c.icon} ${c.label}`}));
 
@@ -2098,12 +2102,15 @@ function PortalPublicoPage() {
   }
 
   const STATUS_CFG = {
-    pendente:     { label:"Aguardando análise", color:"#f59e0b", icon:"⏳", desc:"Sua solicitação foi recebida e está na fila." },
-    em_andamento: { label:"Em produção",        color:"#06b6d4", icon:"⚙️", desc:"O designer está trabalhando nisso agora." },
-    aprovacao:    { label:"Aguarda sua aprovação", color:"#fb923c", icon:"👀", desc:"O designer finalizou. Revise e aprove ou solicite ajustes." },
+    triagem:      { label:"Em triagem",           color:"#94a3b8", icon:"📥", desc:"Solicitação recebida e em análise inicial." },
+    agenda:       { label:"Na agenda",            color:"#818cf8", icon:"📆", desc:"Agendado para produção em breve." },
+    em_criacao:   { label:"Em criação",           color:"#a78bfa", icon:"✏️",  desc:"O designer está criando agora." },
+    revisao:      { label:"Em revisão",           color:"#38bdf8", icon:"🔍", desc:"Quase pronto — passando por revisão final." },
+    aprovacao:    { label:"Aguarda sua aprovação",color:"#fb923c", icon:"👀", desc:"Pronto! Revise e aprove ou solicite ajustes." },
     ajustes:      { label:"Ajustes em andamento", color:"#ef4444", icon:"🔄", desc:"O designer recebeu seu feedback e está ajustando." },
-    finalizado:   { label:"Finalizado ✓",       color:"#10b981", icon:"✅", desc:"Projeto concluído e aprovado." },
-    cancelado:    { label:"Cancelado",           color:"#64748b", icon:"❌", desc:"" },
+    finalizado:   { label:"Finalizado ✓",         color:"#10b981", icon:"✅", desc:"Projeto concluído e aprovado." },
+    pendente:     { label:"Aguardando",           color:"#f59e0b", icon:"⏳", desc:"Sua solicitação foi recebida." },
+    cancelado:    { label:"Cancelado",            color:"#64748b", icon:"❌", desc:"" },
   };
 
   const total = solic.length;
