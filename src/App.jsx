@@ -1603,53 +1603,135 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
 function FormularioPedido({ leads }) {
   const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
   const [selCli, setSelCli] = useState("");
-  const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
-  const [enviado, setEnviado] = useState(false);
-  const [link, setLink] = useState("");
+  const [copiado, setCopiado] = useState(null);
   const cliente = clientes.find(c=>String(c.id)===selCli);
+
+  function copiar(txt, key) {
+    navigator.clipboard.writeText(txt);
+    setCopiado(key);
+    setTimeout(() => setCopiado(null), 2000);
+  }
+
+  const base = window.location.origin;
+  const linkSolicitar = cliente ? `${base}?solicitar=${cliente.id}&nome=${encodeURIComponent(cliente.name)}` : "";
+  const linkPortal    = cliente ? `${base}?portal=${cliente.id}&nome=${encodeURIComponent(cliente.name)}` : "";
+
+  // briefing state (mantido para uso interno)
+  const [showBriefing, setShowBriefing] = useState(false);
+  const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
+  const [briefLink, setBriefLink] = useState("");
+  const [enviado, setEnviado] = useState(false);
   const genLink = () => {
     const base64 = btoa(JSON.stringify({clienteId:selCli, clienteNome:cliente?.name||"", ...form, criadoEm:new Date().toISOString()}));
-    setLink(`${window.location.origin}?pedido=${base64}`);
+    setBriefLink(`${base}?pedido=${base64}`);
     setEnviado(true);
   };
+  const LinkBox = ({ label, desc, icon, url, colorKey }) => {
+    const key = label;
+    return (
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 20px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+          <span style={{ fontSize:20 }}>{icon}</span>
+          <div>
+            <div style={{ color:C.text, fontWeight:700, fontSize:14 }}>{label}</div>
+            <div style={{ color:C.muted, fontSize:12 }}>{desc}</div>
+          </div>
+        </div>
+        {cliente ? (
+          <div style={{ marginTop:12 }}>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 13px", fontSize:11, color:C.teal, wordBreak:"break-all", marginBottom:10 }}>{url}</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => copiar(url, key)}
+                style={{ background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"7px 16px", color:copiado===key?C.green:C.accent, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
+                {copiado===key ? "✓ Copiado!" : "📋 Copiar link"}
+              </button>
+              <button onClick={() => window.open(url, "_blank")}
+                style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"7px 14px", color:C.muted, cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"inherit" }}>
+                👁 Visualizar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ color:C.muted, fontSize:12, marginTop:8, fontStyle:"italic" }}>Selecione um cliente para gerar o link</div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ padding:"28px 32px", maxWidth:680 }}>
-      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>📋 Formulário de Pedido</h1>
-      <p style={{ color:C.muted, fontSize:13, marginBottom:24 }}>Crie um formulário para o cliente preencher os detalhes do projeto.</p>
-      {!enviado ? (
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"24px 28px" }}>
-          <Field label="Cliente" value={selCli} onChange={setSelCli} options={[{value:"",label:"Selecionar cliente..."},...clientes.map(c=>({value:String(c.id),label:c.name}))]}/>
-          {cliente?.briefing_padrao&&<div style={{ background:`${C.teal}10`, border:`1px solid ${C.teal}25`, borderRadius:10, padding:"10px 14px", marginBottom:14 }}><div style={{ color:C.teal, fontSize:11, fontWeight:700, marginBottom:4 }}>📋 Briefing da marca pré-carregado</div><div style={{ color:C.muted, fontSize:12, lineHeight:1.6 }}>{cliente.briefing_padrao.substring(0,120)}{cliente.briefing_padrao.length>120?"...":""}</div></div>}
-          <Field label="Tipo de projeto" value={form.tipo} onChange={v=>setForm(f=>({...f,tipo:v}))} placeholder="Ex: Post Instagram, Identidade Visual..."/>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Descrição do pedido</label>
-            <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} placeholder="O que precisa ser criado? Objetivos, público-alvo..." rows={4} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+    <div style={{ padding:"28px 32px", maxWidth:720 }}>
+      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>🔗 Links do Cliente</h1>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>Gere links personalizados por cliente para solicitar demandas e acompanhar o andamento.</p>
+
+      <div style={{ marginBottom:22 }}>
+        <Field label="Cliente" value={selCli} onChange={v=>{setSelCli(v);setEnviado(false);}} options={[{value:"",label:"Selecionar cliente..."},...clientes.map(c=>({value:String(c.id),label:c.name}))]}/>
+      </div>
+
+      <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:28 }}>
+        <LinkBox
+          icon="📝"
+          label="Link para solicitar demanda"
+          desc="O cliente abre este link, preenche o que precisa e envia. Você recebe no portal."
+          url={linkSolicitar}
+        />
+        <LinkBox
+          icon="🌐"
+          label="Link do portal do cliente"
+          desc="O cliente vê o status de todas as solicitações dele e pode enviar novas."
+          url={linkPortal}
+        />
+      </div>
+
+      {/* Ferramenta de briefing (uso interno) */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
+        <button onClick={()=>setShowBriefing(b=>!b)}
+          style={{ width:"100%", background:"none", border:"none", padding:"16px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", fontFamily:"inherit" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:18 }}>📋</span>
+            <div style={{ textAlign:"left" }}>
+              <div style={{ color:C.text, fontWeight:700, fontSize:14 }}>Gerar briefing de aprovação</div>
+              <div style={{ color:C.muted, fontSize:12 }}>Você preenche o briefing e envia para o cliente confirmar (uso interno)</div>
+            </div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
-            <Field label="Prazo desejado" value={form.prazo} onChange={v=>setForm(f=>({...f,prazo:v}))} type="date"/>
+          <span style={{ color:C.muted, fontSize:18 }}>{showBriefing?"▲":"▼"}</span>
+        </button>
+        {showBriefing && (
+          <div style={{ padding:"0 20px 20px", borderTop:`1px solid ${C.border}` }}>
+            {!enviado ? (
+              <div style={{ paddingTop:18 }}>
+                {cliente?.briefing_padrao&&<div style={{ background:`${C.teal}10`, border:`1px solid ${C.teal}25`, borderRadius:10, padding:"10px 14px", marginBottom:14 }}><div style={{ color:C.teal, fontSize:11, fontWeight:700, marginBottom:4 }}>📋 Briefing da marca pré-carregado</div><div style={{ color:C.muted, fontSize:12, lineHeight:1.6 }}>{cliente.briefing_padrao.substring(0,120)}{cliente.briefing_padrao.length>120?"...":""}</div></div>}
+                <Field label="Tipo de projeto" value={form.tipo} onChange={v=>setForm(f=>({...f,tipo:v}))} placeholder="Ex: Post Instagram, Identidade Visual..."/>
+                <div style={{ marginBottom:14 }}>
+                  <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Descrição do pedido</label>
+                  <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} placeholder="O que precisa ser criado?" rows={3} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
+                  <Field label="Prazo desejado" value={form.prazo} onChange={v=>setForm(f=>({...f,prazo:v}))} type="date"/>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Referências</label>
+                  <textarea value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} placeholder="Links de referência..." rows={2} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+                </div>
+                <div style={{ marginBottom:16 }}>
+                  <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Observações</label>
+                  <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))} placeholder="Qualquer detalhe extra..." rows={2} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+                </div>
+                <Btn onClick={genLink} full disabled={!selCli}>📤 Gerar link de aprovação</Btn>
+              </div>
+            ) : (
+              <div style={{ paddingTop:18, textAlign:"center" }}>
+                <div style={{ fontSize:40, marginBottom:12 }}>🎉</div>
+                <div style={{ color:C.green, fontWeight:700, fontSize:16, marginBottom:8 }}>Link de aprovação gerado!</div>
+                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 14px", fontSize:11, color:C.teal, wordBreak:"break-all", marginBottom:12, textAlign:"left" }}>{briefLink}</div>
+                <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+                  <button onClick={()=>navigator.clipboard.writeText(briefLink)} style={{ background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:9, padding:"9px 18px", color:C.accent, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>📋 Copiar</button>
+                  <button onClick={()=>setEnviado(false)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 16px", color:C.muted, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>← Novo</button>
+                </div>
+              </div>
+            )}
           </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Referências (links, exemplos)</label>
-            <textarea value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} placeholder="Cole links de referência, Pinterest, etc..." rows={3} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
-          </div>
-          <div style={{ marginBottom:20 }}>
-            <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Observações adicionais</label>
-            <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))} placeholder="Qualquer detalhe extra..." rows={2} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 13px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
-          </div>
-          <Btn onClick={genLink} full>📤 Gerar link do formulário</Btn>
-        </div>
-      ) : (
-        <div style={{ background:C.card, border:`1px solid ${C.green}40`, borderRadius:16, padding:"30px 28px", textAlign:"center" }}>
-          <div style={{ fontSize:50, marginBottom:16 }}>🎉</div>
-          <div style={{ color:C.green, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22, marginBottom:8 }}>Formulário criado!</div>
-          <div style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Compartilhe este link com {cliente?.name||"o cliente"}:</div>
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 16px", fontSize:12, color:C.teal, wordBreak:"break-all", marginBottom:16, textAlign:"left" }}>{link}</div>
-          <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
-            <button onClick={()=>navigator.clipboard.writeText(link)} style={{ background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:9, padding:"10px 20px", color:C.accent, cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"inherit" }}>📋 Copiar link</button>
-            <button onClick={()=>setEnviado(false)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 20px", color:C.muted, cursor:"pointer", fontSize:13, fontWeight:600, fontFamily:"inherit" }}>← Novo formulário</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -1696,48 +1778,97 @@ function AprovarPage() {
   );
 }
 
-function PortalCliente({ leads, demandas }) {
+function PortalCliente({ leads }) {
   const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
   const [selCli, setSelCli] = useState("");
+  const [solic, setSolic] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [resposta, setResposta] = useState("");
+  const [novoStatus, setNovoStatus] = useState("");
   const cliente = clientes.find(c=>String(c.id)===selCli);
-  const cDemandas = demandas.filter(d=>d.cliente_id===Number(selCli));
+
+  useEffect(() => {
+    if (!selCli) return;
+    setLoading(true);
+    supabase.from("solicitacoes").select("*").eq("cliente_id", selCli).order("created_at", { ascending: false })
+      .then(({ data }) => { setSolic(data || []); setLoading(false); });
+  }, [selCli]);
+
+  async function salvarResposta(id) {
+    await supabase.from("solicitacoes").update({ status: novoStatus, resposta_designer: resposta }).eq("id", id);
+    setSolic(prev => prev.map(s => s.id===id ? {...s, status:novoStatus, resposta_designer:resposta} : s));
+    setEditId(null);
+  }
+
+  const STATUS_CFG = {
+    pendente:     { label:"Aguardando análise", color:"#f59e0b", icon:"⏳" },
+    em_analise:   { label:"Em análise",         color:"#6366f1", icon:"🔍" },
+    em_andamento: { label:"Em produção",        color:"#06b6d4", icon:"⚙️" },
+    revisao:      { label:"Em revisão",         color:"#8b5cf6", icon:"👀" },
+    finalizado:   { label:"Finalizado",         color:"#10b981", icon:"✅" },
+    cancelado:    { label:"Cancelado",          color:"#64748b", icon:"❌" },
+  };
+  const statusOpts = Object.entries(STATUS_CFG).map(([v,c])=>({value:v, label:`${c.icon} ${c.label}`}));
+
   return (
     <div style={{ padding:"28px 32px", maxWidth:820 }}>
-      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>🌐 Portal do Cliente</h1>
-      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>Visualize o andamento dos projetos como seu cliente veria.</p>
-      <Field label="Ver como cliente" value={selCli} onChange={setSelCli} options={[{value:"",label:"Selecionar cliente..."},...clientes.map(c=>({value:String(c.id),label:c.name}))]}/>
-      {cliente&&(
-        <div>
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 22px", marginBottom:18 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              <div style={{ width:44, height:44, borderRadius:13, background:`linear-gradient(135deg,${C.accentGlow}40,${C.teal}40)`, display:"flex", alignItems:"center", justifyContent:"center", color:C.teal, fontWeight:800, fontSize:20 }}>{cliente.name.charAt(0)}</div>
-              <div><div style={{ color:C.text, fontWeight:700, fontSize:16 }}>{cliente.name}</div><div style={{ color:C.muted, fontSize:12 }}>{cliente.company}</div></div>
-            </div>
-          </div>
-          {KANBAN_COLS.map(col=>{
-            const cards=cDemandas.filter(d=>d.status===col);
-            if(!cards.length) return null;
-            const cfg=STATUS_DEMANDA[col];
+      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>📬 Solicitações dos Clientes</h1>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>Gerencie o que seus clientes enviaram pelo portal. Atualize o status e responda.</p>
+
+      <Field label="Cliente" value={selCli} onChange={setSelCli} options={[{value:"",label:"Selecionar cliente..."},...clientes.map(c=>({value:String(c.id),label:c.name}))]}/>
+
+      {selCli && loading && <div style={{ color:C.muted, fontSize:13, padding:20 }}>Carregando...</div>}
+
+      {selCli && !loading && solic.length === 0 && (
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:30, textAlign:"center", color:C.muted }}>
+          <div style={{ fontSize:40, marginBottom:10 }}>📭</div>
+          <div>Nenhuma solicitação recebida deste cliente ainda.</div>
+          <div style={{ fontSize:12, marginTop:6 }}>Compartilhe o link de solicitação em "Links do Cliente" para que ele possa enviar.</div>
+        </div>
+      )}
+
+      {solic.length > 0 && (
+        <div style={{ display:"flex", flexDirection:"column", gap:12, marginTop:8 }}>
+          {solic.map(s => {
+            const cfg = STATUS_CFG[s.status] || STATUS_CFG.pendente;
+            const open = editId === s.id;
             return (
-              <div key={col} style={{ marginBottom:16 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-                  <span style={{ fontSize:16 }}>{cfg.icon}</span>
-                  <span style={{ color:cfg.color, fontWeight:700, fontSize:14 }}>{cfg.label}</span>
-                  <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:11, padding:"1px 8px", borderRadius:99, fontWeight:700 }}>{cards.length}</span>
+              <div key={s.id} style={{ background:C.card, border:`1px solid ${open?C.accent:C.border}`, borderRadius:14, padding:"16px 20px", transition:"border-color .15s" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                  <div>
+                    <div style={{ color:C.text, fontWeight:700, fontSize:14 }}>{s.tipo || "Solicitação sem tipo"}</div>
+                    <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{new Date(s.created_at).toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"})}</div>
+                  </div>
+                  <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20 }}>{cfg.icon} {cfg.label}</span>
                 </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {cards.map(d=>(
-                    <div key={d.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"12px 16px", borderLeft:`3px solid ${cfg.color}` }}>
-                      <div style={{ color:C.text, fontWeight:700, fontSize:13 }}>{d.titulo}</div>
-                      {d.descricao&&<div style={{ color:C.muted, fontSize:12, marginTop:5 }}>{d.descricao}</div>}
-                      {d.prazo&&<div style={{ color:C.muted, fontSize:11, marginTop:6 }}>📅 Prazo: {new Date(d.prazo+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long"})}</div>}
+                {s.descricao    && <div style={{ color:C.muted, fontSize:13, lineHeight:1.6, marginBottom:4 }}>{s.descricao}</div>}
+                {s.prazo        && <div style={{ color:C.muted, fontSize:12, marginBottom:4 }}>📅 Prazo desejado: {new Date(s.prazo+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long"})}</div>}
+                {s.referencias  && <div style={{ color:C.muted, fontSize:12, marginBottom:4 }}>🔗 Refs: {s.referencias}</div>}
+                {s.resposta_designer && !open && (
+                  <div style={{ background:`${C.accent}0d`, border:`1px solid ${C.accent}25`, borderRadius:9, padding:"8px 12px", marginTop:8, fontSize:12, color:C.accent }}>💬 {s.resposta_designer}</div>
+                )}
+                {!open ? (
+                  <button onClick={()=>{setEditId(s.id);setResposta(s.resposta_designer||"");setNovoStatus(s.status);}}
+                    style={{ marginTop:12, background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"6px 14px", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    ✏️ Atualizar status / responder
+                  </button>
+                ) : (
+                  <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+                    <Field label="Novo status" value={novoStatus} onChange={setNovoStatus} options={statusOpts}/>
+                    <div style={{ marginBottom:12 }}>
+                      <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Resposta para o cliente</label>
+                      <textarea value={resposta} onChange={e=>setResposta(e.target.value)} placeholder="O cliente verá esta mensagem no portal dele..." rows={3} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 12px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
                     </div>
-                  ))}
-                </div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={()=>salvarResposta(s.id)} style={{ background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:8, padding:"8px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💾 Salvar</button>
+                      <button onClick={()=>setEditId(null)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 14px", color:C.muted, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
-          {cDemandas.length===0&&<div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:30, textAlign:"center", color:C.muted }}>Nenhuma demanda para este cliente ainda.</div>}
         </div>
       )}
     </div>
@@ -1768,9 +1899,231 @@ function LoginScreen({ onLogin }) {
   );
 }
 
+// ─── Página pública: cliente solicita demanda ──────────────────────────────
+function SolicitarPage() {
+  const params = new URLSearchParams(window.location.search);
+  const clienteId = params.get("solicitar");
+  const clienteNome = params.get("nome") || "Cliente";
+  const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
+  const [enviado, setEnviado] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function enviar() {
+    if (!form.descricao.trim()) return;
+    setLoading(true);
+    try {
+      await supabase.from("solicitacoes").insert([{
+        id: Date.now(),
+        cliente_id: clienteId,
+        cliente_nome: clienteNome,
+        ...form,
+        status: "pendente",
+        created_at: new Date().toISOString(),
+      }]);
+      setEnviado(true);
+    } catch(e) {
+      alert("Erro ao enviar. Tente novamente.");
+    }
+    setLoading(false);
+  }
+
+  const inp = { background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:9, padding:"10px 13px", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" };
+
+  if (enviado) return (
+    <div style={{ minHeight:"100vh", background:"#0a0a12", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif" }}>
+      <div style={{ textAlign:"center", maxWidth:420, padding:32 }}>
+        <div style={{ fontSize:70, marginBottom:20 }}>✅</div>
+        <div style={{ color:"#a78bfa", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:26, marginBottom:8 }}>Solicitação enviada!</div>
+        <div style={{ color:"#5a5a7a", fontSize:14, lineHeight:1.7 }}>
+          Sua solicitação foi recebida e será analisada em breve.<br/>Você pode fechar esta página.
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#0a0a12", padding:"40px 20px", fontFamily:"'DM Sans',sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+      <div style={{ maxWidth:580, margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:32 }}>
+          <div style={{ width:52, height:52, borderRadius:16, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", fontSize:24 }}>✦</div>
+          <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:24, marginBottom:6 }}>Solicitar Demanda</div>
+          <div style={{ color:"#5a5a7a", fontSize:13 }}>Olá, {clienteNome}! Preencha os detalhes do que você precisa.</div>
+        </div>
+        <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:18, padding:"28px 28px" }}>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Tipo de projeto</div>
+            <input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} placeholder="Ex: Post Instagram, Logotipo, Banner..." style={inp}/>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Descrição *</div>
+            <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} placeholder="O que precisa ser criado? Objetivos, público-alvo, cores preferidas..." rows={4} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Prazo desejado</div>
+            <input type="date" value={form.prazo} onChange={e=>setForm(f=>({...f,prazo:e.target.value}))} style={inp}/>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Referências (links, imagens)</div>
+            <textarea value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} placeholder="Cole links de referência, Pinterest, exemplos que gostou..." rows={3} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
+          </div>
+          <div style={{ marginBottom:24 }}>
+            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Observações adicionais</div>
+            <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))} placeholder="Qualquer detalhe extra..." rows={2} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
+          </div>
+          <button onClick={enviar} disabled={!form.descricao.trim() || loading}
+            style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:11, padding:"14px", color:(!form.descricao.trim()||loading)?"#3a3a5a":"#fff", fontSize:15, fontWeight:800, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"'Syne',sans-serif" }}>
+            {loading ? "Enviando..." : "📤 Enviar solicitação"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Página pública: portal do cliente ────────────────────────────────────────
+function PortalPublicoPage() {
+  const params = new URLSearchParams(window.location.search);
+  const clienteId = params.get("portal");
+  const clienteNome = params.get("nome") || "Cliente";
+  const [solic, setSolic] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.from("solicitacoes").select("*").eq("cliente_id", clienteId).order("created_at", { ascending: false });
+        setSolic(data || []);
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  const STATUS_CFG = {
+    pendente:      { label:"Aguardando análise", color:"#f59e0b", icon:"⏳" },
+    em_analise:    { label:"Em análise",         color:"#6366f1", icon:"🔍" },
+    em_andamento:  { label:"Em produção",        color:"#06b6d4", icon:"⚙️" },
+    revisao:       { label:"Em revisão",         color:"#8b5cf6", icon:"👀" },
+    finalizado:    { label:"Finalizado",         color:"#10b981", icon:"✅" },
+    cancelado:     { label:"Cancelado",          color:"#64748b", icon:"❌" },
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#0a0a12", padding:"40px 20px", fontFamily:"'DM Sans',sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+      <div style={{ maxWidth:680, margin:"0 auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:28 }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+              <div style={{ width:38, height:38, borderRadius:11, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>✦</div>
+              <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22 }}>Portal do Cliente</div>
+            </div>
+            <div style={{ color:"#5a5a7a", fontSize:13 }}>Olá, {clienteNome}! Acompanhe suas solicitações aqui.</div>
+          </div>
+          <button onClick={() => setShowForm(!showForm)}
+            style={{ background:"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"9px 16px", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            + Nova solicitação
+          </button>
+        </div>
+
+        {showForm && (
+          <div style={{ background:"#13131f", border:"1px solid #6366f130", borderRadius:16, padding:24, marginBottom:20 }}>
+            <SolicitarFormInline clienteId={clienteId} clienteNome={clienteNome} onEnviado={() => { setShowForm(false); window.location.reload(); }}/>
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ textAlign:"center", padding:60, color:"#5a5a7a" }}>Carregando...</div>
+        ) : solic.length === 0 ? (
+          <div style={{ textAlign:"center", padding:60, color:"#3a3a5a" }}>
+            <div style={{ fontSize:48, marginBottom:12 }}>📭</div>
+            <div style={{ fontSize:15, color:"#5a5a7a" }}>Nenhuma solicitação ainda</div>
+            <div style={{ fontSize:12, marginTop:4 }}>Clique em "+ Nova solicitação" para começar</div>
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {solic.map(s => {
+              const cfg = STATUS_CFG[s.status] || STATUS_CFG.pendente;
+              return (
+                <div key={s.id} style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"16px 20px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                    <div>
+                      <div style={{ color:"#e8e6f0", fontWeight:700, fontSize:14 }}>{s.tipo || "Solicitação"}</div>
+                      <div style={{ color:"#5a5a7a", fontSize:11, marginTop:2 }}>{new Date(s.created_at).toLocaleDateString("pt-BR", {day:"numeric",month:"long",year:"numeric"})}</div>
+                    </div>
+                    <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap" }}>
+                      {cfg.icon} {cfg.label}
+                    </span>
+                  </div>
+                  {s.descricao && <div style={{ color:"#8a8aaa", fontSize:13, lineHeight:1.6, marginBottom:s.resposta_designer?8:0 }}>{s.descricao}</div>}
+                  {s.prazo && <div style={{ color:"#5a5a7a", fontSize:12, marginTop:6 }}>📅 Prazo desejado: {new Date(s.prazo+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long"})}</div>}
+                  {s.resposta_designer && (
+                    <div style={{ background:"#6366f110", border:"1px solid #6366f130", borderRadius:10, padding:"10px 14px", marginTop:10 }}>
+                      <div style={{ color:"#818cf8", fontSize:11, fontWeight:700, marginBottom:4 }}>💬 Resposta do designer:</div>
+                      <div style={{ color:"#c4c4e0", fontSize:12, lineHeight:1.6 }}>{s.resposta_designer}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Form inline reutilizável para o portal
+function SolicitarFormInline({ clienteId, clienteNome, onEnviado }) {
+  const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
+  const [loading, setLoading] = useState(false);
+  const inp = { background:"#0f0f1a", border:"1px solid #2a2a45", borderRadius:9, padding:"9px 12px", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" };
+
+  async function enviar() {
+    if (!form.descricao.trim()) return;
+    setLoading(true);
+    try {
+      await supabase.from("solicitacoes").insert([{ id:Date.now(), cliente_id:clienteId, cliente_nome:clienteNome, ...form, status:"pendente", created_at:new Date().toISOString() }]);
+      onEnviado();
+    } catch { alert("Erro ao enviar."); }
+    setLoading(false);
+  }
+
+  return (
+    <div>
+      <div style={{ color:"#e8e6f0", fontWeight:700, fontSize:14, marginBottom:16 }}>Nova solicitação</div>
+      <div style={{ marginBottom:12 }}>
+        <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:5, textTransform:"uppercase" }}>Tipo de projeto</div>
+        <input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} placeholder="Ex: Post, Logo, Banner..." style={inp}/>
+      </div>
+      <div style={{ marginBottom:12 }}>
+        <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:5, textTransform:"uppercase" }}>Descrição *</div>
+        <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} placeholder="O que precisa ser criado?" rows={3} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:5, textTransform:"uppercase" }}>Prazo</div>
+          <input type="date" value={form.prazo} onChange={e=>setForm(f=>({...f,prazo:e.target.value}))} style={inp}/>
+        </div>
+      </div>
+      <div style={{ marginBottom:16 }}>
+        <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:5, textTransform:"uppercase" }}>Referências</div>
+        <input value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} placeholder="Links, exemplos..." style={inp}/>
+      </div>
+      <button onClick={enviar} disabled={!form.descricao.trim()||loading}
+        style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"12px", color:(!form.descricao.trim()||loading)?"#3a3a5a":"#fff", fontSize:14, fontWeight:700, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"inherit" }}>
+        {loading ? "Enviando..." : "📤 Enviar"}
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("pedido")) return <AprovarPage/>;
+  if (params.get("pedido"))    return <AprovarPage/>;
+  if (params.get("solicitar")) return <SolicitarPage/>;
+  if (params.get("portal"))    return <PortalPublicoPage/>;
 
   const [loggedIn, setLoggedIn] = useLocalStorage("dh_loggedIn", false);
   const [theme, setTheme] = useLocalStorage("dh_theme", "dark");
@@ -1812,8 +2165,8 @@ export default function App() {
     { id:"portfolio", label:"Portfólio", icon:"portfolio", sec:"criativo" },
     { id:"notes", label:"Notas", icon:"note", sec:"criativo" },
     { id:"relatorio", label:"Relatório", icon:"bar", sec:"criativo" },
-    { id:"formulario", label:"Formulário", icon:"note", sec:"ferramentas" },
-    { id:"portal", label:"Portal Cliente", icon:"user", sec:"ferramentas" },
+    { id:"formulario", label:"Links do Cliente", icon:"note", sec:"ferramentas" },
+    { id:"portal", label:"Solicitações", icon:"user", sec:"ferramentas" },
   ];
 
   const sections = { principal:"", gestao:"GESTÃO", trabalho:"TRABALHO", criativo:"CRIATIVO", ferramentas:"FERRAMENTAS" };
@@ -1902,7 +2255,7 @@ export default function App() {
           {view==="notes"       && <Notes notes={notes} setNotes={setNotes}/>}
           {view==="relatorio"   && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
           {view==="formulario"  && <FormularioPedido leads={leads}/>}
-          {view==="portal"      && <PortalCliente leads={leads} demandas={demandas}/>}
+          {view==="portal"      && <PortalCliente leads={leads}/>}
         </div>
       </div>
 
