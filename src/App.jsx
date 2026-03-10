@@ -1600,15 +1600,44 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
   const cliente = clientes.find(c=>c.id===selId);
   const jobs = demandas.filter(d=>d.cliente_id!=null && String(d.cliente_id)===String(selId));
   const jobsFinalizados = jobs.filter(d=>d.status==="finalizado");
-  const totalFaturado = jobsFinalizados.reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
+  const totalFaturado = jobs.reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
   const [modalDem, setModalDem] = useState(false);
   const [formDem, setFormDem] = useState({titulo:"",descricao:"",prazo:"",valor:"",status:"agenda",tag:""});
   const [editDemId, setEditDemId] = useState(null);
-  const saveDem = () => {
+  const saveDem = async () => {
     if (!formDem.titulo) return;
     const d = {...formDem, valor:parseFloat(formDem.valor)||0, cliente_id:Number(selId), data_criacao:new Date().toISOString().split("T")[0]};
-    if (editDemId) setDemandas(ds=>ds.map(x=>x.id===editDemId?{...x,...d}:x));
-    else setDemandas(ds=>[...ds,{...d,id:Date.now()}]);
+    if (editDemId) {
+      // Ao editar: atualiza localStorage e Supabase se tiver vínculo
+      const existing = demandas.find(x=>x.id===editDemId);
+      setDemandas(ds=>ds.map(x=>x.id===editDemId?{...x,...d}:x));
+      if (existing?.solicitacao_id) {
+        await supabase.from("solicitacoes").update({ tipo:d.titulo, descricao:d.descricao||"", prazo:d.prazo||"", status:d.status }).eq("id", Number(existing.solicitacao_id));
+        window.dispatchEvent(new CustomEvent("solic_changed"));
+      }
+    } else {
+      // Ao criar: insere no Supabase solicitacoes e vincula
+      const newId = Date.now();
+      const clienteNome = leads.find(l=>l.id===Number(selId))?.name || "";
+      const { data: solData } = await supabase.from("solicitacoes").insert([{
+        cliente_id: String(selId),
+        cliente_nome: clienteNome,
+        tipo: d.titulo,
+        descricao: d.descricao || "",
+        prazo: d.prazo || "",
+        status: d.status,
+        created_at: new Date().toISOString(),
+      }]).select().single();
+      const solicitacao_id = solData?.id || null;
+      // Registra vínculo no kanban map
+      if (solicitacao_id) {
+        const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+        kanbanMap[String(solicitacao_id)] = newId;
+        localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+      }
+      setDemandas(ds=>[...ds,{...d, id:newId, solicitacao_id}]);
+      window.dispatchEvent(new CustomEvent("solic_changed"));
+    }
     setModalDem(false);
     setFormDem({titulo:"",descricao:"",prazo:"",valor:"",status:"agenda",tag:""});
     setEditDemId(null);
@@ -1645,7 +1674,7 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
           {clientes.map(c=>{
             const cJobs = demandas.filter(d=>String(d.cliente_id)===String(c.id));
             const cFin = cJobs.filter(d=>d.status==="finalizado");
-            const cTotal = cFin.reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
+            const cTotal = cJobs.reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
             const emAndamento = cJobs.filter(d=>!["finalizado"].includes(d.status)).length;
             return (
               <div key={c.id} onClick={()=>setSelId(c.id)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"20px 22px", cursor:"pointer", transition:"all 0.15s" }} onMouseEnter={e=>{e.currentTarget.style.background=C.cardHover;e.currentTarget.style.transform="translateY(-2px)";}} onMouseLeave={e=>{e.currentTarget.style.background=C.card;e.currentTarget.style.transform="none";}}>
@@ -2070,13 +2099,7 @@ function PortalCliente({ leads, setDemandas }) {
                   <div style={{ background:`${C.accent}0d`, border:`1px solid ${C.accent}25`, borderRadius:9, padding:"8px 12px", marginTop:8, fontSize:12, color:C.accent }}>💬 {s.resposta_designer}</div>
                 )}
                 {!open && (
-                  <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
-                    {!jaNoKanban && s.status === "pendente" && (
-                      <button onClick={()=>addToKanban(s)}
-                        style={{ background:`${C.teal}18`, border:`1px solid ${C.teal}30`, borderRadius:8, padding:"6px 14px", color:C.teal, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                        📥 Mandar para Kanban (Triagem)
-                      </button>
-                    )}
+                  <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap", alignItems:"center" }}>
                     {jaNoKanban && <span style={{ color:C.teal, fontSize:12, fontWeight:600 }}>✓ No Kanban</span>}
                     <button onClick={()=>{setEditId(s.id);setResposta(s.resposta_designer||"");setNovoStatus(s.status);}}
                       style={{ background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"6px 14px", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
