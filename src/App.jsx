@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase, dbReady } from './lib/supabase.js';
 import { Prospeccao } from './Prospeccao';
 
@@ -7,8 +7,14 @@ function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
     try {
       const stored = localStorage.getItem(key);
-      return stored ? JSON.parse(stored) : initialValue;
+      if (!stored) return initialValue;
+      const parsed = JSON.parse(stored);
+      // Valida tipo básico — se esperado array e veio outra coisa, descarta
+      if (Array.isArray(initialValue) && !Array.isArray(parsed)) return initialValue;
+      return parsed;
     } catch {
+      // Dado corrompido — limpa e usa valor inicial
+      try { localStorage.removeItem(key); } catch {}
       return initialValue;
     }
   });
@@ -17,6 +23,14 @@ function useLocalStorage(key, initialValue) {
   }, [key, value]);
   return [value, setValue];
 }
+
+// Limpa chaves corrompidas conhecidas na inicialização
+try {
+  ["dh_demandas","dh_leads","dh_tasks","dh_portfolio","dh_timer_history","dh_notes","dh_despesas"].forEach(k => {
+    const v = localStorage.getItem(k);
+    if (v) { try { const p = JSON.parse(v); if (!Array.isArray(p)) localStorage.removeItem(k); } catch { localStorage.removeItem(k); } }
+  });
+} catch {}
 
 const THEMES = {
   dark: {
@@ -2003,7 +2017,11 @@ function LoginScreen({ onLogin }) {
         <Field label="Senha" value={pwd} onChange={setPwd} type="password" placeholder="••••••"/>
         {err&&<div style={{ color:C.red, fontSize:12, marginBottom:14, textAlign:"center" }}>{err}</div>}
         <button onClick={tryLogin} style={{ width:"100%", background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:11, padding:"14px", color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"'Syne',sans-serif", letterSpacing:"0.04em", boxShadow:`0 4px 20px ${C.accentGlow}50`, marginBottom:16 }}>Entrar</button>
-        <div style={{ textAlign:"center", color:C.muted, fontSize:11 }}>Demo: admin / 123456</div>
+        <div style={{ textAlign:"center", color:C.muted, fontSize:11, marginBottom:10 }}>Demo: admin / 123456</div>
+        <button onClick={()=>{ if(window.confirm("Limpar todos os dados locais e reiniciar? (dados no Supabase ficam intactos)")){localStorage.clear();window.location.reload();}}}
+          style={{ width:"100%", background:"none", border:`1px solid ${C.border}`, borderRadius:9, padding:"8px", color:C.muted, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+          🗑 Limpar cache local (se app travar)
+        </button>
       </div>
     </div>
   );
