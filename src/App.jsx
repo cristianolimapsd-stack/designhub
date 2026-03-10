@@ -258,6 +258,58 @@ function MonthPicker({ value, onChange, label }) {
   );
 }
 
+// ── Card de solicitações no Dashboard ─────────────────────────────────────────
+function SolicDashCard({ setView, colors }) {
+  const C = colors;
+  const [solic, setSolic] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from("solicitacoes")
+      .select("id,tipo,cliente_nome,status,created_at")
+      .in("status", ["pendente","triagem","ajustes"])
+      .order("created_at", { ascending:false })
+      .limit(5)
+      .then(({ data }) => { setSolic(data||[]); setLoading(false); });
+  }, []);
+
+  if (loading || solic.length === 0) return null;
+
+  const STATUS_CORES = {
+    pendente: { color:"#f59e0b", icon:"⏳", label:"Aguardando" },
+    triagem:  { color:"#94a3b8", icon:"📥", label:"Triagem" },
+    ajustes:  { color:"#ef4444", icon:"🔄", label:"Ajustes" },
+  };
+
+  return (
+    <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}25`, borderRadius:16, padding:"18px 22px", marginBottom:22 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:18 }}>📬</span>
+          <span style={{ color:C.text, fontWeight:800, fontSize:15, fontFamily:"'Syne',sans-serif" }}>Solicitações pendentes</span>
+          <span style={{ background:`${C.accent}20`, color:C.accent, fontSize:11, fontWeight:700, padding:"2px 9px", borderRadius:20 }}>{solic.length}</span>
+        </div>
+        <button onClick={()=>setView("portal")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>Ver todas →</button>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+        {solic.map(s => {
+          const cfg = STATUS_CORES[s.status] || STATUS_CORES.pendente;
+          return (
+            <div key={s.id} onClick={()=>setView("portal")} style={{ display:"flex", alignItems:"center", gap:10, background:C.card, borderRadius:10, padding:"9px 14px", border:`1px solid ${C.border}`, cursor:"pointer" }}>
+              <span style={{ fontSize:14 }}>{cfg.icon}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.tipo||"Solicitação"}</div>
+                <div style={{ color:C.muted, fontSize:11 }}>{s.cliente_nome}</div>
+              </div>
+              <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, whiteSpace:"nowrap" }}>{cfg.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas: _dashDemandas=[], setFocusMode }) {
   const demandas = Array.isArray(_dashDemandas) ? _dashDemandas : [];
   const today = new Date().toISOString().split("T")[0];
@@ -337,28 +389,43 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas: _dash
       </div>
       {(() => {
         const urgentes = demandas.filter(d => d.status !== "finalizado" && d.prazo && d.prazo <= new Date(Date.now()+2*86400000).toISOString().split("T")[0]);
+        const hoje = demandas.filter(d => d.status !== "finalizado" && d.prazo === today);
+        const atrasadas = demandas.filter(d => d.status !== "finalizado" && d.prazo && d.prazo < today);
+        const amanha = new Date(); amanha.setDate(amanha.getDate()+1);
+        const amanhaStr = amanha.toISOString().split("T")[0];
+        const venceAmanha = demandas.filter(d => d.status !== "finalizado" && d.prazo === amanhaStr);
         if (urgentes.length === 0) return null;
         return (
-          <div style={{ background:`${C.red}10`, border:`1px solid ${C.red}30`, borderRadius:14, padding:"16px 22px", marginBottom:22 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-              <span style={{ fontSize:16 }}>🚨</span>
-              <span style={{ color:C.red, fontWeight:700, fontSize:14 }}>{urgentes.length} demanda{urgentes.length>1?"s":""} urgente{urgentes.length>1?"s":""}</span>
+          <div style={{ background:`${C.red}08`, border:`1px solid ${C.red}25`, borderRadius:16, padding:"18px 22px", marginBottom:22 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:18 }}>🚨</span>
+                <span style={{ color:C.red, fontWeight:800, fontSize:15, fontFamily:"'Syne',sans-serif" }}>Prazos urgentes</span>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                {atrasadas.length>0&&<span style={{ background:`${C.red}18`, color:C.red, fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20 }}>🔴 {atrasadas.length} atrasada{atrasadas.length>1?"s":""}</span>}
+                {hoje.length>0&&<span style={{ background:`${C.orange}18`, color:C.orange, fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20 }}>🟠 {hoje.length} hoje</span>}
+                {venceAmanha.length>0&&<span style={{ background:`${C.yellow}18`, color:C.yellow, fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20 }}>🟡 {venceAmanha.length} amanhã</span>}
+              </div>
             </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {urgentes.map(d=>{
+            <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+              {urgentes.slice(0,5).map(d=>{
                 const dias = Math.ceil((new Date(d.prazo) - new Date(today)) / 86400000);
+                const cfg = dias < 0 ? {icon:"🔴",color:C.red,txt:`${Math.abs(dias)}d atrasado`} : dias===0 ? {icon:"🟠",color:C.orange,txt:"Vence hoje!"} : {icon:"🟡",color:C.yellow,txt:"Amanhã"};
                 return (
-                  <div key={d.id} style={{ display:"flex", alignItems:"center", gap:10, background:`${C.red}08`, borderRadius:9, padding:"9px 14px", border:`1px solid ${C.red}20` }}>
-                    <span style={{ fontSize:13 }}>{dias < 0 ? "🔴" : dias === 0 ? "🟠" : "🟡"}</span>
+                  <div key={d.id} style={{ display:"flex", alignItems:"center", gap:10, background:`${cfg.color}08`, borderRadius:10, padding:"9px 14px", border:`1px solid ${cfg.color}20` }}>
+                    <span style={{ fontSize:13 }}>{cfg.icon}</span>
                     <span style={{ color:C.text, fontSize:13, flex:1, fontWeight:600 }}>{d.titulo}</span>
-                    <span style={{ color:C.red, fontSize:12, fontWeight:700 }}>{dias < 0 ? `${Math.abs(dias)}d atrasado` : dias === 0 ? "Vence hoje!" : "Amanhã"}</span>
+                    <span style={{ color:cfg.color, fontSize:12, fontWeight:700 }}>{cfg.txt}</span>
                   </div>
                 );
               })}
+              {urgentes.length>5&&<div style={{ color:C.muted, fontSize:12, textAlign:"center", paddingTop:4 }}>+{urgentes.length-5} mais no Kanban</div>}
             </div>
           </div>
         );
       })()}
+      <SolicDashCard setView={setView} colors={C}/>
       <div className="grid-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
@@ -2071,7 +2138,10 @@ function SolicitarPage() {
     <div style={{ minHeight:"100vh", background:bg, fontFamily:"'DM Sans',sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
-        * { box-sizing:border-box; } body { margin:0; background:${bg}; }
+        * { box-sizing:border-box; }
+        @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:0.85} }
+        @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} } body { margin:0; background:${bg}; }
       `}</style>
 
       {/* Header */}
@@ -2193,6 +2263,9 @@ function PortalPublicoPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
         * { box-sizing:border-box; }
+        @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:0.85} }
+        @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         body { margin:0; background:${bg}; }
         ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:${bg}; } ::-webkit-scrollbar-thumb { background:#2a2a45; border-radius:3px; }
       `}</style>
@@ -2441,6 +2514,75 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
 
+  // ── Notificações de solicitações novas ─────────────────────────────────────
+  const [solicPendentes, setSolicPendentes] = useState(0);
+  const [solicVistas, setSolicVistas] = useLocalStorage("dh_solic_vistas", 0);
+  const [notifToast, setNotifToast] = useState(null);
+  const prevSolicCount = useRef(solicVistas);
+
+  // Toca som de notificação
+  function tocarSom() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+    } catch {}
+  }
+
+  // Push notification do browser
+  async function pedirPermissaoPush() {
+    if ("Notification" in window && Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
+  }
+  function notificarBrowser(qtd) {
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("FluxioHUB — Nova solicitação!", {
+        body: `${qtd} nova${qtd>1?"s":""} solicitação${qtd>1?"ões":""} de cliente${qtd>1?"s":""}`,
+        icon: "/favicon.ico",
+      });
+    }
+  }
+
+  // Polling: verifica novas solicitações a cada 30s
+  useEffect(() => {
+    pedirPermissaoPush();
+    async function checar() {
+      try {
+        const { count } = await supabase.from("solicitacoes").select("*", { count:"exact", head:true }).eq("status","pendente");
+        const total = count || 0;
+        setSolicPendentes(total);
+        if (total > prevSolicCount.current) {
+          const novas = total - prevSolicCount.current;
+          tocarSom();
+          notificarBrowser(novas);
+          setNotifToast(`${novas} nova${novas>1?"s":""} solicitação${novas>1?"ões":""}!`);
+          setTimeout(() => setNotifToast(null), 5000);
+        }
+        prevSolicCount.current = total;
+      } catch {}
+    }
+    checar();
+    const interval = setInterval(checar, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Zera badge ao entrar em Solicitações
+  useEffect(() => {
+    if (view === "portal") {
+      setSolicVistas(solicPendentes);
+      prevSolicCount.current = solicPendentes;
+    }
+  }, [view, solicPendentes]);
+
+  const badgeSolic = Math.max(0, solicPendentes - solicVistas);
+
   useEffect(() => { C = THEMES[theme]; document.documentElement.style.setProperty("--bg", THEMES[theme].bg); document.body.style.background=THEMES[theme].bg; }, [theme]);
   useEffect(() => { localStorage.setItem("dh_view", view); }, [view]);
 
@@ -2481,6 +2623,9 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
         * { box-sizing:border-box; }
+        @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:0.85} }
+        @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         ::-webkit-scrollbar { width:4px; height:4px; }
         ::-webkit-scrollbar-track { background:transparent; }
         ::-webkit-scrollbar-thumb { background:#334155; border-radius:99px; }
@@ -2512,6 +2657,9 @@ export default function App() {
                     {n.id==="agenda"&&tasks.filter(t=>t.date===new Date().toISOString().split("T")[0]&&!t.done).length>0&&(
                       <div style={{ marginLeft:"auto", width:18, height:18, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, color:"#fff" }}>{tasks.filter(t=>t.date===new Date().toISOString().split("T")[0]&&!t.done).length}</div>
                     )}
+                    {n.id==="portal"&&badgeSolic>0&&(
+                      <div style={{ marginLeft:"auto", minWidth:18, height:18, borderRadius:9, background:C.red, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, color:"#fff", padding:"0 5px", animation:"pulse 1.5s infinite" }}>{badgeSolic}</div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2534,6 +2682,16 @@ export default function App() {
         <div style={{ height:54, display:"flex", alignItems:"center", padding:"0 24px", borderBottom:`1px solid ${C.border}`, gap:14, flexShrink:0 }}>
           <button onClick={()=>setSideOpen(s=>!s)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="menu" s={20}/></button>
           <span style={{ color:C.muted, fontSize:13 }}>{nav.find(n=>n.id===view)?.label||""}</span>
+          {notifToast&&(
+            <div onClick={()=>{setView("portal");setNotifToast(null);}} style={{ position:"fixed", bottom:24, right:24, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:14, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", cursor:"pointer", zIndex:9999, animation:"slideUp 0.3s ease" }}>
+              <span style={{ fontSize:22 }}>🔔</span>
+              <div>
+                <div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>{notifToast}</div>
+                <div style={{ color:"rgba(255,255,255,0.7)", fontSize:11 }}>Clique para ver as solicitações</div>
+              </div>
+              <button onClick={e=>{e.stopPropagation();setNotifToast(null);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:6, width:22, height:22, color:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+            </div>
+          )}
           <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12 }}>
             <button onClick={timer.toggle} style={{ display:"flex", alignItems:"center", gap:7, background:timer.running?`${C.teal}18`:C.card, border:`1px solid ${timer.running?C.teal:C.border}`, borderRadius:9, padding:"6px 13px", cursor:"pointer" }}>
               <div style={{ width:7, height:7, borderRadius:"50%", background:timer.running?C.teal:C.muted, boxShadow:timer.running?`0 0 6px ${C.teal}`:""}}/>
