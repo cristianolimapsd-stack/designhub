@@ -1329,6 +1329,8 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
       const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
       delete kanbanMap[String(demanda.solicitacao_id)];
       localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+      // Avisa o PortalCliente para recarregar
+      window.dispatchEvent(new CustomEvent("solic_changed"));
     }
   };
   const move = (id, status) => {
@@ -1617,6 +1619,7 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
       const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
       delete kanbanMap[String(dem.solicitacao_id)];
       localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+      window.dispatchEvent(new CustomEvent("solic_changed"));
     }
   };
   const moveDem = (id, status) => {
@@ -1922,10 +1925,9 @@ function PortalCliente({ leads, setDemandas }) {
   // Sincronização automática via move() no Kanban — não precisa de botão manual
   const cliente = clientes.find(c=>String(c.id)===selCli);
 
-  useEffect(() => {
+  const carregarSolic = React.useCallback(() => {
     if (!selCli) return;
     setLoading(true);
-    // Ao carregar, sincroniza status das solicitações com o kanban local
     const demandas = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
     const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}");
     Object.entries(kanbanMap).forEach(([solicId, demandaId]) => {
@@ -1935,6 +1937,14 @@ function PortalCliente({ leads, setDemandas }) {
     supabase.from("solicitacoes").select("*").eq("cliente_id", selCli).order("created_at", { ascending:false })
       .then(({ data }) => { setSolic(data || []); setLoading(false); });
   }, [selCli]);
+
+  useEffect(() => { carregarSolic(); }, [carregarSolic]);
+
+  // Recarrega automaticamente quando Kanban deletar uma demanda vinculada
+  useEffect(() => {
+    window.addEventListener("solic_changed", carregarSolic);
+    return () => window.removeEventListener("solic_changed", carregarSolic);
+  }, [carregarSolic]);
 
   async function salvarResposta(id) {
     await supabase.from("solicitacoes").update({ status:novoStatus, resposta_designer:resposta }).eq("id", id);
