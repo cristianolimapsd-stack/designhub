@@ -1302,6 +1302,7 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
   const [editId, setEditId] = useState(null);
   const [filterCli, setFilterCli] = useState("");
   const [search, setSearch] = useState("");
+  const [histCard, setHistCard] = useState(null); // card cujo histórico está aberto
   const clientes = Array.isArray(leads) ? leads.filter(l=>l&&l.categoria==="cliente_fixo") : [];
   const filtered = demandas.filter(d=>{
     try {
@@ -1333,20 +1334,26 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
       window.dispatchEvent(new CustomEvent("solic_changed"));
     }
   };
-  const move = (id, status) => {
+  const move = async (id, status) => {
+    const ts = new Date().toISOString();
+    setDemandas(ds=>ds.map(d=>{
+      if (d.id!==id) return d;
+      const hist = Array.isArray(d.historico) ? d.historico : [];
+      return {...d, status, status_desde:ts, historico:[...hist,{status, ts}]};
+    }));
     const demanda = demandasRef.current.find(d=>d.id===id);
-    setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
-    // Sincroniza com Supabase — tenta via solicitacao_id ou via kanban map
+    // Busca solicitacao_id via objeto E via mapa (dupla segurança)
+    const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+    const mapEntry = Object.entries(kanbanMap).find(([_,did])=>String(did)===String(id));
     const sid = demanda?.solicitacao_id
       ? Number(demanda.solicitacao_id)
-      : (() => {
-          const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
-          const entry = Object.entries(kanbanMap).find(([_,did])=>String(did)===String(id));
-          return entry ? Number(entry[0]) : null;
-        })();
+      : mapEntry ? Number(mapEntry[0]) : null;
     if (sid) {
-      supabase.from("solicitacoes").update({ status }).eq("id", sid);
+      const { error } = await supabase.from("solicitacoes").update({ status }).eq("id", sid);
+      if (error) console.error("move() Supabase error:", error);
       window.dispatchEvent(new CustomEvent("solic_changed"));
+    } else {
+      console.warn("move(): sem solicitacao_id para demanda", id, "— status só no localStorage");
     }
   };
   const nomeCliente = (id) => clientes.find(c=>String(c.id)===String(id))?.name||"";
@@ -1363,7 +1370,30 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
         <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
           <div style={{ position:"relative" }}>
             <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}><Ico n="search" s={13} c={C.muted}/></div>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar..." style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"8px 12px 8px 32px", color:C.text, fontSize:12, width:170, outline:"none", fontFamily:"inherit" }}/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar demandas..." style={{ background:C.card, border:`1px solid ${search?C.accent:C.border}`, borderRadius:9, padding:"8px 12px 8px 32px", color:C.text, fontSize:12, width:200, outline:"none", fontFamily:"inherit" }}/>
+            {search && (
+              <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, width:320, background:C.card, border:`1px solid ${C.border}`, borderRadius:12, boxShadow:"0 8px 32px rgba(0,0,0,0.4)", zIndex:200, maxHeight:300, overflowY:"auto" }}>
+                {demandas.filter(d=>{
+                  const q=search.toLowerCase();
+                  return (d.titulo||"").toLowerCase().includes(q)||(d.tag||"").toLowerCase().includes(q)||(d.descricao||"").toLowerCase().includes(q);
+                }).slice(0,8).map(d=>{
+                  const cfg=STATUS_DEMANDA[d.status]||STATUS_DEMANDA.agenda;
+                  return (
+                    <div key={d.id} onClick={()=>{setSearch(""); setHistCard(null);}} style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", borderBottom:`1px solid ${C.border}` }} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{ fontSize:14 }}>{cfg.icon}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ color:C.text, fontSize:12, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.titulo}</div>
+                        <div style={{ color:C.muted, fontSize:10 }}>{cfg.label} · {nomeCliente(d.cliente_id)||"Sem cliente"}</div>
+                      </div>
+                      <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:10, padding:"2px 7px", borderRadius:20, fontWeight:700, flexShrink:0 }}>{cfg.label.split(" ")[0]}</span>
+                    </div>
+                  );
+                })}
+                {demandas.filter(d=>{const q=search.toLowerCase();return (d.titulo||"").toLowerCase().includes(q)||(d.tag||"").toLowerCase().includes(q);}).length===0&&(
+                  <div style={{ padding:"16px", color:C.muted, fontSize:12, textAlign:"center" }}>Nenhuma demanda encontrada</div>
+                )}
+              </div>
+            )}
           </div>
           <select value={filterCli} onChange={e=>setFilterCli(e.target.value)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"8px 12px", color:filterCli?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
             <option value="">Todos os clientes</option>
@@ -1394,7 +1424,12 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
                   <div style={{ height:2, background:`${cfg.color}30`, borderRadius:99, marginTop:6 }}><div style={{ height:"100%", width:`${Math.min(100,cards.length/Math.max(1,filtered.length)*100)}%`, background:cfg.color, borderRadius:99 }}/></div>
                 </div>
                 <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:9, background:dragTarget===col?`${cfg.color}05`:"transparent", borderRadius:12, padding:"4px", transition:"background 0.2s" }}>
-                  {cards.map(card=>{
+                  {[...cards].sort((a,b)=>{
+                    if (!a.prazo && !b.prazo) return 0;
+                    if (!a.prazo) return 1;
+                    if (!b.prazo) return -1;
+                    return a.prazo.localeCompare(b.prazo);
+                  }).map(card=>{
                     const atrasado=card.prazo&&card.prazo<today&&card.status!=="finalizado";
                     const venceHoje=card.prazo===today;
                     return (
@@ -1402,6 +1437,9 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
                           <span style={{ color:C.text, fontWeight:700, fontSize:12, flex:1, lineHeight:1.4 }}>{card.titulo}</span>
                           <div style={{ display:"flex", gap:4, flexShrink:0, marginLeft:8 }}>
+                            {Array.isArray(card.historico)&&card.historico.length>0&&(
+                              <button onClick={()=>setHistCard(card)} title="Histórico" style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:2, fontSize:11 }}>📋</button>
+                            )}
                             <button onClick={()=>openEdit(card)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:2 }}><Ico n="edit" s={11}/></button>
                             <button onClick={()=>del(card.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.red, padding:2 }}><Ico n="trash" s={11}/></button>
                           </div>
@@ -1417,10 +1455,17 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
                             {card.cliente_id&&<span style={{ fontSize:11, color:C.muted }}>👤 {nomeCliente(card.cliente_id)}</span>}
                           </div>
                         )}
-                        <div style={{ display:"flex", gap:4, marginTop:8, flexWrap:"wrap" }}>
-                          {KANBAN_COLS.filter(c=>c!==col).slice(0,3).map(c=>(
-                            <button key={c} onClick={()=>move(card.id,c)} style={{ background:`${STATUS_DEMANDA[c].color}10`, border:`1px solid ${STATUS_DEMANDA[c].color}25`, borderRadius:5, padding:"2px 7px", color:STATUS_DEMANDA[c].color, fontSize:10, cursor:"pointer", fontWeight:600 }}>→ {STATUS_DEMANDA[c].label.split(" ")[0]}</button>
-                          ))}
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8, flexWrap:"wrap", gap:4 }}>
+                          <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                            {KANBAN_COLS.filter(c=>c!==col).slice(0,3).map(c=>(
+                              <button key={c} onClick={()=>move(card.id,c)} style={{ background:`${STATUS_DEMANDA[c].color}10`, border:`1px solid ${STATUS_DEMANDA[c].color}25`, borderRadius:5, padding:"2px 7px", color:STATUS_DEMANDA[c].color, fontSize:10, cursor:"pointer", fontWeight:600 }}>→ {STATUS_DEMANDA[c].label.split(" ")[0]}</button>
+                            ))}
+                          </div>
+                          {card.status_desde && col!=="finalizado" && (()=>{
+                            const dias = Math.floor((Date.now()-new Date(card.status_desde).getTime())/86400000);
+                            const cor = dias>=3?C.red:dias>=1?C.yellow:C.muted;
+                            return <span style={{ fontSize:10, color:cor, fontWeight:dias>=1?700:400 }}>⏱ {dias===0?"hoje":`${dias}d`}</span>;
+                          })()}
                         </div>
                       </div>
                     );
@@ -1432,6 +1477,35 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
           })}
         </div>
       </div>
+      {histCard && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setHistCard(null)}>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:"100%", maxWidth:420, maxHeight:"80vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+              <div>
+                <div style={{ color:C.text, fontWeight:800, fontSize:16, fontFamily:"'Syne',sans-serif" }}>📋 Histórico</div>
+                <div style={{ color:C.muted, fontSize:12, marginTop:2 }}>{histCard.titulo}</div>
+              </div>
+              <button onClick={()=>setHistCard(null)} style={{ background:"none", border:"none", color:C.muted, fontSize:20, cursor:"pointer" }}>×</button>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {(histCard.historico||[]).map((h,i)=>{
+                const cfg = STATUS_DEMANDA[h.status]||STATUS_DEMANDA.agenda;
+                const dt = new Date(h.ts);
+                return (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:C.surface, borderRadius:10, borderLeft:`3px solid ${cfg.color}` }}>
+                    <span style={{ fontSize:16 }}>{cfg.icon}</span>
+                    <div style={{ flex:1 }}>
+                      <div style={{ color:C.text, fontWeight:700, fontSize:13 }}>{cfg.label}</div>
+                      <div style={{ color:C.muted, fontSize:11 }}>{dt.toLocaleDateString("pt-BR",{day:"numeric",month:"short",year:"numeric"})} às {dt.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
+                    </div>
+                    {i===((histCard.historico||[]).length-1)&&<span style={{ background:`${cfg.color}20`, color:cfg.color, fontSize:10, padding:"2px 8px", borderRadius:20, fontWeight:700 }}>atual</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Editar Demanda":"Nova Demanda"}>
         <Field label="Título" value={form.titulo} onChange={v=>setForm(f=>({...f,titulo:v}))} placeholder="Ex: Post para Instagram — Janeiro"/>
         <Field label="Descrição" value={form.descricao} onChange={v=>setForm(f=>({...f,descricao:v}))} placeholder="Detalhes..."/>
@@ -1654,11 +1728,17 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
       window.dispatchEvent(new CustomEvent("solic_changed"));
     }
   };
-  const moveDem = (id, status) => {
-    const dem = demandas.find(d=>d.id===id);
+  const moveDem = async (id, status) => {
     setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
-    if (dem?.solicitacao_id) {
-      supabase.from("solicitacoes").update({ status }).eq("id", Number(dem.solicitacao_id));
+    const dem = demandas.find(d=>d.id===id);
+    const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+    const mapEntry = Object.entries(kanbanMap).find(([_,did])=>String(did)===String(id));
+    const sid = dem?.solicitacao_id
+      ? Number(dem.solicitacao_id)
+      : mapEntry ? Number(mapEntry[0]) : null;
+    if (sid) {
+      const { error } = await supabase.from("solicitacoes").update({ status }).eq("id", sid);
+      if (error) console.error("moveDem() error:", error);
       window.dispatchEvent(new CustomEvent("solic_changed"));
     }
   };
@@ -1968,9 +2048,15 @@ function PortalCliente({ leads, setDemandas }) {
     // Busca direto do Supabase — o Kanban já mantém o status atualizado via move()
     supabase.from("solicitacoes")
       .select("*")
-      .or(`cliente_id.eq.${selCli},cliente_id.eq.${Number(selCli)||0}`)
       .order("created_at", { ascending:false })
-      .then(({ data }) => { setSolic(data || []); setLoading(false); });
+      .then(({ data }) => {
+        const filtered = (data||[]).filter(s =>
+          String(s.cliente_id) === String(selCli) ||
+          String(s.cliente_id) === String(Number(selCli))
+        );
+        setSolic(filtered);
+        setLoading(false);
+      });
   }, [selCli]);
 
   useEffect(() => {
@@ -2092,6 +2178,23 @@ function PortalCliente({ leads, setDemandas }) {
                     <button onClick={()=>{setEditId(s.id);setResposta(s.resposta_designer||"");setNovoStatus(s.status);}}
                       style={{ background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"6px 14px", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                       ✏️ Responder / Status
+                    </button>
+                    <button onClick={async ()=>{
+                      if (!window.confirm("Excluir esta solicitação?")) return;
+                      await supabase.from("solicitacoes").delete().eq("id", s.id);
+                      // Remove do kanban map e demandas se vinculado
+                      const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+                      const demandaId = kanbanMap[String(s.id)];
+                      if (demandaId) {
+                        delete kanbanMap[String(s.id)];
+                        localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+                        const demandasAtual = JSON.parse(localStorage.getItem("dh_demandas")||"[]");
+                        localStorage.setItem("dh_demandas", JSON.stringify(demandasAtual.filter(d=>String(d.id)!==String(demandaId))));
+                      }
+                      setSolic(prev => prev.filter(x => x.id !== s.id));
+                      window.dispatchEvent(new CustomEvent("solic_changed"));
+                    }} style={{ background:`${C.red}15`, border:`1px solid ${C.red}30`, borderRadius:8, padding:"6px 12px", color:C.red, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      🗑 Excluir
                     </button>
                   </div>
                 )}
@@ -2257,13 +2360,16 @@ function PortalPublicoPage() {
 
   const carregarPortal = async () => {
     try {
-      // Busca por cliente_id como string E como número para garantir compatibilidade
       const { data } = await supabase
         .from("solicitacoes")
         .select("*")
-        .or(`cliente_id.eq.${clienteId},cliente_id.eq.${Number(clienteId)||0}`)
         .order("created_at", { ascending:false });
-      setSolic(data || []);
+      // Filtra no cliente: aceita string ou número
+      const filtered = (data||[]).filter(s =>
+        String(s.cliente_id) === String(clienteId) ||
+        String(s.cliente_id) === String(Number(clienteId))
+      );
+      setSolic(filtered);
     } catch {}
     setLoading(false);
   };
