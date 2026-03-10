@@ -52,13 +52,15 @@ const ABORDAGENS = [
   { id:"reativacao",  icon:"🔄", nome:"Reativação",           desc:"Para contatos frios. Retoma sem ser chato.",                  instrucao:"Follow-up pra quem esfriou. NÃO mencione tentativas anteriores. Aborde como se tivesse pensado neles por motivo genuíno. 2-3 linhas." },
 ];
 
-// ─── API — usa Haiku que é 4x mais rápido ────────────────────────────────────
-function callClaude(messages, system = "", maxTokens = 400) {
-  return fetch("https://api.anthropic.com/v1/messages", {
+// ─── API ──────────────────────────────────────────────────────────────────────
+async function callClaude(messages, system = "", maxTokens = 400) {
+  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("⚠️ VITE_ANTHROPIC_API_KEY não configurada no Vercel.");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
+      "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     },
@@ -68,9 +70,10 @@ function callClaude(messages, system = "", maxTokens = 400) {
       system,
       messages,
     }),
-  })
-    .then(r => r.json())
-    .then(d => d.content?.[0]?.text || "");
+  });
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message);
+  return d.content?.[0]?.text || "";
 }
 
 function diasAtras(dateStr) {
@@ -119,13 +122,17 @@ function Pipeline({ prospects, setProspects, onMensagem }) {
 
   async function analisarDor(p) {
     setLoadDor(p.id);
-    const contexto = [p.name, p.segment, p.canal, p.notes].filter(Boolean).join(", ");
-    const txt = await callClaude(
-      [{ role:"user", content:`Prospect para prospecção de design: ${contexto}\n\nDiga em 3 pontos curtos:\n1. Provável fraqueza visual/design desse negócio\n2. A dor real que isso causa (perda de cliente, credibilidade)\n3. Gancho de abordagem ideal\n\nSeja específico e cirúrgico. Máx 100 palavras.` }],
-      "Você é designer freelancer experiente analisando prospects para prospecção. Seja direto e prático.",
-      350
-    );
-    setProspects(prev => prev.map(x => x.id === p.id ? { ...x, dor_ia: txt } : x));
+    try {
+      const contexto = [p.name, p.segment, p.canal, p.notes].filter(Boolean).join(", ");
+      const txt = await callClaude(
+        [{ role:"user", content:`Prospect para prospecção de design: ${contexto}\n\nDiga em 3 pontos curtos:\n1. Provável fraqueza visual/design desse negócio\n2. A dor real que isso causa (perda de cliente, credibilidade)\n3. Gancho de abordagem ideal\n\nSeja específico e cirúrgico. Máx 100 palavras.` }],
+        "Você é designer freelancer experiente analisando prospects para prospecção. Seja direto e prático.",
+        350
+      );
+      setProspects(prev => prev.map(x => x.id === p.id ? { ...x, dor_ia: txt } : x));
+    } catch(e) {
+      setProspects(prev => prev.map(x => x.id === p.id ? { ...x, dor_ia: `Erro: ${e.message}` } : x));
+    }
     setLoadDor(null);
   }
 
@@ -452,26 +459,32 @@ function CriarMensagem({ selectedProspect, prospects }) {
   const [mensagem,  setMensagem]  = useState("");
   const [loading,   setLoading]   = useState(false);
   const [copiado,   setCopiado]   = useState(false);
+  const [erro,      setErro]      = useState("");
 
   const prospect = prospects.find(p => String(p.id) === String(selId));
   const ab = ABORDAGENS.find(a => a.id === abordagem);
 
   async function gerar() {
     if (!prospect) return;
-    setLoading(true); setMensagem("");
-    const contexto = [
-      prospect.name,
-      prospect.segment && `Segmento: ${prospect.segment}`,
-      prospect.dor_ia  && `Análise de dor: ${prospect.dor_ia}`,
-      prospect.notas_dor && `Observações minhas: ${prospect.notas_dor}`,
-      prospect.referral && `Indicado por: ${prospect.referral}`,
-    ].filter(Boolean).join("\n");
-    const txt = await callClaude(
-      [{ role:"user", content:`Escreva mensagem de prospecção para:\n${contexto}\n\nEstilo: ${ab.instrucao}\n\nRegras absolutas:\n- NÃO comece com "Olá", "Oi", "Ei"\n- NÃO use "espero que esteja bem"\n- NÃO seja genérico\n- Máx 5 linhas` }],
-      "Você é designer freelancer brasileiro escrevendo DMs de prospecção. Seja humano, criativo e específico. Nunca genérico.",
-      300
-    );
-    setMensagem(txt); setLoading(false);
+    setLoading(true); setMensagem(""); setErro("");
+    try {
+      const contexto = [
+        prospect.name,
+        prospect.segment && `Segmento: ${prospect.segment}`,
+        prospect.dor_ia  && `Análise de dor: ${prospect.dor_ia}`,
+        prospect.notas_dor && `Observações minhas: ${prospect.notas_dor}`,
+        prospect.referral && `Indicado por: ${prospect.referral}`,
+      ].filter(Boolean).join("\n");
+      const txt = await callClaude(
+        [{ role:"user", content:`Escreva mensagem de prospecção para:\n${contexto}\n\nEstilo: ${ab.instrucao}\n\nRegras absolutas:\n- NÃO comece com "Olá", "Oi", "Ei"\n- NÃO use "espero que esteja bem"\n- NÃO seja genérico\n- Máx 5 linhas` }],
+        "Você é designer freelancer brasileiro escrevendo DMs de prospecção. Seja humano, criativo e específico. Nunca genérico.",
+        300
+      );
+      setMensagem(txt);
+    } catch(e) {
+      setErro(e.message);
+    }
+    setLoading(false);
   }
 
   function copiar() {
@@ -517,6 +530,18 @@ function CriarMensagem({ selectedProspect, prospects }) {
         style={{ background:(!prospect||loading)?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"1px solid #6366f140", borderRadius:10, padding:"12px 24px", color:(!prospect||loading)?"#5a5a7a":"#fff", fontSize:14, fontWeight:700, cursor:(!prospect||loading)?"not-allowed":"pointer", fontFamily:"inherit", width:"100%", marginBottom:16, opacity:loading?0.7:1 }}>
         {loading ? "⏳ Gerando..." : "✨ Gerar mensagem"}
       </button>
+
+      {erro && (
+        <div style={{ background:"#ef444415", border:"1px solid #ef444440", borderRadius:12, padding:"14px 18px", marginBottom:16 }}>
+          <div style={{ color:"#ef4444", fontWeight:700, fontSize:13, marginBottom:4 }}>❌ Erro ao gerar</div>
+          <div style={{ color:"#ef4444aa", fontSize:12 }}>{erro}</div>
+          {erro.includes("VITE_ANTHROPIC") && (
+            <div style={{ color:"#f59e0b", fontSize:12, marginTop:8 }}>
+              👉 Vá em Vercel → projeto → Settings → Environment Variables → adicione VITE_ANTHROPIC_API_KEY com sua chave do console.anthropic.com. Depois faça um novo deploy.
+            </div>
+          )}
+        </div>
+      )}
 
       {mensagem && (
         <div style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:14, padding:"18px 20px" }}>
