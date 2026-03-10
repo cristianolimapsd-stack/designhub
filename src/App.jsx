@@ -894,7 +894,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
   }).reverse();
   const maxChart = Math.max(...chartMonths.map(m=>m.val),meta,1);
   const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
-  const rankClientes = clientes.map(c=>({...c,total:demandas.filter(d=>d.cliente_id===c.id&&d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0),jobs:demandas.filter(d=>d.cliente_id===c.id&&d.status==="finalizado").length})).sort((a,b)=>b.total-a.total);
+  const rankClientes = clientes.map(c=>({...c,total:demandas.filter(d=>String(d.cliente_id)===String(c.id)&&d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0),jobs:demandas.filter(d=>String(d.cliente_id)===String(c.id)&&d.status==="finalizado").length})).sort((a,b)=>b.total-a.total);
   const tagMap = {};
   demandas.filter(d=>d.status==="finalizado").forEach(d=>{const tag=d.tag||"Sem tag";if(!tagMap[tag])tagMap[tag]={total:0,count:0};tagMap[tag].total+=parseFloat(d.valor)||0;tagMap[tag].count++;});
   const rankTags = Object.entries(tagMap).map(([tag,v])=>({tag,...v})).sort((a,b)=>b.total-a.total);
@@ -1227,9 +1227,30 @@ function Kanban({ demandas, setDemandas, leads }) {
     else setDemandas(ds=>[...ds,{...d,id:Date.now()}]);
     setModal(false);
   };
-  const del = id => { if (!window.confirm("Excluir demanda?")) return; setDemandas(ds=>ds.filter(d=>d.id!==id)); };
-  const move = (id, status) => setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
-  const nomeCliente = (id) => clientes.find(c=>c.id===id)?.name||"";
+  const del = id => {
+    if (!window.confirm("Excluir demanda?")) return;
+    const demanda = demandas.find(d=>d.id===id);
+    setDemandas(ds=>ds.filter(d=>d.id!==id));
+    // Se veio de uma solicitação, apaga lá também
+    if (demanda?.solicitacao_id) {
+      supabase.from("solicitacoes").delete().eq("id", demanda.solicitacao_id);
+      const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+      delete kanbanMap[demanda.solicitacao_id];
+      localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+    }
+  };
+  const move = (id, status) => {
+    setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
+    // Sincroniza status da solicitação vinculada
+    const demanda = demandas.find(d=>d.id===id);
+    if (demanda?.solicitacao_id) {
+      const solStatus = status === "aprovacao" ? "aprovacao"
+        : status === "finalizado" ? "finalizado"
+        : "em_andamento";
+      supabase.from("solicitacoes").update({ status: solStatus }).eq("id", demanda.solicitacao_id);
+    }
+  };
+  const nomeCliente = (id) => clientes.find(c=>String(c.id)===String(id))?.name||"";
   const handleDragStart = (e, id) => { setDragId(id); e.dataTransfer.effectAllowed="move"; };
   const handleDrop = (e, col) => { e.preventDefault(); if (dragId) { move(dragId, col); setDragId(null); setDragTarget(null); } };
   const handleDragOver = (e, col) => { e.preventDefault(); setDragTarget(col); };
@@ -1478,7 +1499,7 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
   const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
   const [selId, setSelId] = useState(null);
   const cliente = clientes.find(c=>c.id===selId);
-  const jobs = demandas.filter(d=>d.cliente_id===selId);
+  const jobs = demandas.filter(d=>d.cliente_id!=null && String(d.cliente_id)===String(selId));
   const jobsFinalizados = jobs.filter(d=>d.status==="finalizado");
   const totalFaturado = jobsFinalizados.reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
   const [modalDem, setModalDem] = useState(false);
@@ -1486,7 +1507,7 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
   const [editDemId, setEditDemId] = useState(null);
   const saveDem = () => {
     if (!formDem.titulo) return;
-    const d = {...formDem, valor:parseFloat(formDem.valor)||0, cliente_id:selId, data_criacao:new Date().toISOString().split("T")[0]};
+    const d = {...formDem, valor:parseFloat(formDem.valor)||0, cliente_id:Number(selId), data_criacao:new Date().toISOString().split("T")[0]};
     if (editDemId) setDemandas(ds=>ds.map(x=>x.id===editDemId?{...x,...d}:x));
     else setDemandas(ds=>[...ds,{...d,id:Date.now()}]);
     setModalDem(false);
@@ -1505,7 +1526,7 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
       {!selId ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:16 }}>
           {clientes.map(c=>{
-            const cJobs = demandas.filter(d=>d.cliente_id===c.id);
+            const cJobs = demandas.filter(d=>String(d.cliente_id)===String(c.id));
             const cFin = cJobs.filter(d=>d.status==="finalizado");
             const cTotal = cFin.reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
             const emAndamento = cJobs.filter(d=>!["finalizado"].includes(d.status)).length;
