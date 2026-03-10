@@ -1778,7 +1778,7 @@ function AprovarPage() {
   );
 }
 
-function PortalCliente({ leads }) {
+function PortalCliente({ leads, setDemandas }) {
   const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
   const [selCli, setSelCli] = useState("");
   const [solic, setSolic] = useState([]);
@@ -1786,35 +1786,71 @@ function PortalCliente({ leads }) {
   const [editId, setEditId] = useState(null);
   const [resposta, setResposta] = useState("");
   const [novoStatus, setNovoStatus] = useState("");
+  const [kanbanIds, setKanbanIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}"); } catch { return {}; }
+  });
   const cliente = clientes.find(c=>String(c.id)===selCli);
 
   useEffect(() => {
     if (!selCli) return;
     setLoading(true);
-    supabase.from("solicitacoes").select("*").eq("cliente_id", selCli).order("created_at", { ascending: false })
+    supabase.from("solicitacoes").select("*").eq("cliente_id", selCli).order("created_at", { ascending:false })
       .then(({ data }) => { setSolic(data || []); setLoading(false); });
   }, [selCli]);
 
   async function salvarResposta(id) {
-    await supabase.from("solicitacoes").update({ status: novoStatus, resposta_designer: resposta }).eq("id", id);
+    await supabase.from("solicitacoes").update({ status:novoStatus, resposta_designer:resposta }).eq("id", id);
+    // Se moveu para aprovacao, também reflete no kanban
+    if (novoStatus === "aprovacao" && kanbanIds[id]) {
+      const demLocal = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
+      const updated = demLocal.map(d => d.id === kanbanIds[id] ? {...d, status:"aprovacao"} : d);
+      localStorage.setItem("dh_demandas", JSON.stringify(updated));
+      setDemandas(updated);
+    }
     setSolic(prev => prev.map(s => s.id===id ? {...s, status:novoStatus, resposta_designer:resposta} : s));
     setEditId(null);
   }
 
+  function addToKanban(s) {
+    const newId = Date.now();
+    const demanda = {
+      id: newId,
+      titulo: s.tipo || "Solicitação do cliente",
+      descricao: [s.descricao, s.referencias && `Refs: ${s.referencias}`, s.observacoes && `Obs: ${s.observacoes}`].filter(Boolean).join("
+"),
+      prazo: s.prazo || "",
+      valor: 0,
+      status: "triagem",
+      cliente_id: Number(s.cliente_id) || null,
+      tag: s.tipo || "Solicitação",
+      solicitacao_id: s.id,
+      data_criacao: new Date().toISOString().split("T")[0],
+    };
+    setDemandas(prev => [...prev, demanda]);
+    // Registra o vínculo
+    const updated = {...kanbanIds, [s.id]: newId};
+    setKanbanIds(updated);
+    localStorage.setItem("dh_solic_kanban", JSON.stringify(updated));
+    // Atualiza status da solicitação
+    supabase.from("solicitacoes").update({ status:"em_andamento" }).eq("id", s.id);
+    setSolic(prev => prev.map(x => x.id===s.id ? {...x, status:"em_andamento"} : x));
+    alert(`✅ Adicionado ao Kanban em Triagem!`);
+  }
+
   const STATUS_CFG = {
-    pendente:     { label:"Aguardando análise", color:"#f59e0b", icon:"⏳" },
-    em_analise:   { label:"Em análise",         color:"#6366f1", icon:"🔍" },
-    em_andamento: { label:"Em produção",        color:"#06b6d4", icon:"⚙️" },
-    revisao:      { label:"Em revisão",         color:"#8b5cf6", icon:"👀" },
-    finalizado:   { label:"Finalizado",         color:"#10b981", icon:"✅" },
-    cancelado:    { label:"Cancelado",          color:"#64748b", icon:"❌" },
+    pendente:      { label:"Aguardando",   color:"#f59e0b", icon:"⏳" },
+    em_andamento:  { label:"No Kanban",    color:"#06b6d4", icon:"⚙️" },
+    aprovacao:     { label:"Aprovação",    color:"#fb923c", icon:"👀" },
+    ajustes:       { label:"Ajustes",      color:"#ef4444", icon:"🔄" },
+    finalizado:    { label:"Finalizado",   color:"#10b981", icon:"✅" },
+    cancelado:     { label:"Cancelado",    color:"#64748b", icon:"❌" },
   };
   const statusOpts = Object.entries(STATUS_CFG).map(([v,c])=>({value:v, label:`${c.icon} ${c.label}`}));
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:820 }}>
       <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>📬 Solicitações dos Clientes</h1>
-      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>Gerencie o que seus clientes enviaram pelo portal. Atualize o status e responda.</p>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>Receba, gerencie e mande para o Kanban. Quando estiver em aprovação, o cliente vê no portal.</p>
 
       <Field label="Cliente" value={selCli} onChange={setSelCli} options={[{value:"",label:"Selecionar cliente..."},...clientes.map(c=>({value:String(c.id),label:c.name}))]}/>
 
@@ -1823,8 +1859,8 @@ function PortalCliente({ leads }) {
       {selCli && !loading && solic.length === 0 && (
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:30, textAlign:"center", color:C.muted }}>
           <div style={{ fontSize:40, marginBottom:10 }}>📭</div>
-          <div>Nenhuma solicitação recebida deste cliente ainda.</div>
-          <div style={{ fontSize:12, marginTop:6 }}>Compartilhe o link de solicitação em "Links do Cliente" para que ele possa enviar.</div>
+          <div>Nenhuma solicitação deste cliente ainda.</div>
+          <div style={{ fontSize:12, marginTop:6 }}>Compartilhe o link em "Links do Cliente" para que ele possa enviar.</div>
         </div>
       )}
 
@@ -1833,32 +1869,43 @@ function PortalCliente({ leads }) {
           {solic.map(s => {
             const cfg = STATUS_CFG[s.status] || STATUS_CFG.pendente;
             const open = editId === s.id;
+            const jaNoKanban = !!kanbanIds[s.id];
             return (
               <div key={s.id} style={{ background:C.card, border:`1px solid ${open?C.accent:C.border}`, borderRadius:14, padding:"16px 20px", transition:"border-color .15s" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
                   <div>
-                    <div style={{ color:C.text, fontWeight:700, fontSize:14 }}>{s.tipo || "Solicitação sem tipo"}</div>
-                    <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{new Date(s.created_at).toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"})}</div>
+                    <div style={{ color:C.text, fontWeight:700, fontSize:14 }}>{s.tipo || "Solicitação"}</div>
+                    <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{new Date(s.created_at).toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"})} · {s.cliente_nome}</div>
                   </div>
-                  <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20 }}>{cfg.icon} {cfg.label}</span>
+                  <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap" }}>{cfg.icon} {cfg.label}</span>
                 </div>
-                {s.descricao    && <div style={{ color:C.muted, fontSize:13, lineHeight:1.6, marginBottom:4 }}>{s.descricao}</div>}
-                {s.prazo        && <div style={{ color:C.muted, fontSize:12, marginBottom:4 }}>📅 Prazo desejado: {new Date(s.prazo+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long"})}</div>}
-                {s.referencias  && <div style={{ color:C.muted, fontSize:12, marginBottom:4 }}>🔗 Refs: {s.referencias}</div>}
+                {s.descricao   && <div style={{ color:C.muted, fontSize:13, lineHeight:1.6, marginBottom:4 }}>{s.descricao}</div>}
+                {s.prazo       && <div style={{ color:C.muted, fontSize:12, marginBottom:4 }}>📅 Prazo: {new Date(s.prazo+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long"})}</div>}
+                {s.referencias && <div style={{ color:C.muted, fontSize:12, marginBottom:4 }}>🔗 {s.referencias}</div>}
                 {s.resposta_designer && !open && (
                   <div style={{ background:`${C.accent}0d`, border:`1px solid ${C.accent}25`, borderRadius:9, padding:"8px 12px", marginTop:8, fontSize:12, color:C.accent }}>💬 {s.resposta_designer}</div>
                 )}
-                {!open ? (
-                  <button onClick={()=>{setEditId(s.id);setResposta(s.resposta_designer||"");setNovoStatus(s.status);}}
-                    style={{ marginTop:12, background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"6px 14px", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                    ✏️ Atualizar status / responder
-                  </button>
-                ) : (
+                {!open && (
+                  <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
+                    {!jaNoKanban && s.status === "pendente" && (
+                      <button onClick={()=>addToKanban(s)}
+                        style={{ background:`${C.teal}18`, border:`1px solid ${C.teal}30`, borderRadius:8, padding:"6px 14px", color:C.teal, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        📥 Mandar para Kanban (Triagem)
+                      </button>
+                    )}
+                    {jaNoKanban && <span style={{ color:C.teal, fontSize:12, fontWeight:600 }}>✓ No Kanban</span>}
+                    <button onClick={()=>{setEditId(s.id);setResposta(s.resposta_designer||"");setNovoStatus(s.status);}}
+                      style={{ background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"6px 14px", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      ✏️ Responder / Status
+                    </button>
+                  </div>
+                )}
+                {open && (
                   <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
                     <Field label="Novo status" value={novoStatus} onChange={setNovoStatus} options={statusOpts}/>
                     <div style={{ marginBottom:12 }}>
                       <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>Resposta para o cliente</label>
-                      <textarea value={resposta} onChange={e=>setResposta(e.target.value)} placeholder="O cliente verá esta mensagem no portal dele..." rows={3} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 12px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+                      <textarea value={resposta} onChange={e=>setResposta(e.target.value)} placeholder="O cliente verá esta mensagem no portal. Se marcar Aprovação, ele poderá confirmar ou pedir ajustes." rows={3} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 12px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
                     </div>
                     <div style={{ display:"flex", gap:8 }}>
                       <button onClick={()=>salvarResposta(s.id)} style={{ background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:8, padding:"8px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💾 Salvar</button>
@@ -1907,6 +1954,7 @@ function SolicitarPage() {
   const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
   const [enviado, setEnviado] = useState(false);
   const [loading, setLoading] = useState(false);
+  const bg = "#080810";
 
   async function enviar() {
     if (!form.descricao.trim()) return;
@@ -1927,56 +1975,68 @@ function SolicitarPage() {
     setLoading(false);
   }
 
-  const inp = { background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:9, padding:"10px 13px", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" };
-
-  if (enviado) return (
-    <div style={{ minHeight:"100vh", background:"#0a0a12", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif" }}>
-      <div style={{ textAlign:"center", maxWidth:420, padding:32 }}>
-        <div style={{ fontSize:70, marginBottom:20 }}>✅</div>
-        <div style={{ color:"#a78bfa", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:26, marginBottom:8 }}>Solicitação enviada!</div>
-        <div style={{ color:"#5a5a7a", fontSize:14, lineHeight:1.7 }}>
-          Sua solicitação foi recebida e será analisada em breve.<br/>Você pode fechar esta página.
-        </div>
-      </div>
-    </div>
-  );
+  const inp = { background:"#13131f", border:"1px solid #1e1e35", borderRadius:9, padding:"10px 13px", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0a0a12", padding:"40px 20px", fontFamily:"'DM Sans',sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
-      <div style={{ maxWidth:580, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ width:52, height:52, borderRadius:16, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", fontSize:24 }}>✦</div>
-          <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:24, marginBottom:6 }}>Solicitar Demanda</div>
-          <div style={{ color:"#5a5a7a", fontSize:13 }}>Olá, {clienteNome}! Preencha os detalhes do que você precisa.</div>
-        </div>
-        <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:18, padding:"28px 28px" }}>
-          <div style={{ marginBottom:16 }}>
-            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Tipo de projeto</div>
-            <input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} placeholder="Ex: Post Instagram, Logotipo, Banner..." style={inp}/>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Descrição *</div>
-            <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} placeholder="O que precisa ser criado? Objetivos, público-alvo, cores preferidas..." rows={4} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Prazo desejado</div>
-            <input type="date" value={form.prazo} onChange={e=>setForm(f=>({...f,prazo:e.target.value}))} style={inp}/>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Referências (links, imagens)</div>
-            <textarea value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} placeholder="Cole links de referência, Pinterest, exemplos que gostou..." rows={3} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
-          </div>
-          <div style={{ marginBottom:24 }}>
-            <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Observações adicionais</div>
-            <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))} placeholder="Qualquer detalhe extra..." rows={2} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
-          </div>
-          <button onClick={enviar} disabled={!form.descricao.trim() || loading}
-            style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:11, padding:"14px", color:(!form.descricao.trim()||loading)?"#3a3a5a":"#fff", fontSize:15, fontWeight:800, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"'Syne',sans-serif" }}>
-            {loading ? "Enviando..." : "📤 Enviar solicitação"}
-          </button>
-        </div>
+    <div style={{ minHeight:"100vh", background:bg, fontFamily:"'DM Sans',sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+        * { box-sizing:border-box; } body { margin:0; background:${bg}; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ borderBottom:"1px solid #1e1e35", padding:"16px 28px", background:"#10101e", display:"flex", alignItems:"center", gap:10 }}>
+        <div style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>✦</div>
+        <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16 }}>Nova Solicitação</div>
       </div>
+
+      {enviado ? (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"calc(100vh - 65px)", padding:20 }}>
+          <div style={{ textAlign:"center", maxWidth:420 }}>
+            <div style={{ fontSize:70, marginBottom:20 }}>✅</div>
+            <div style={{ color:"#a78bfa", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:26, marginBottom:12 }}>Enviado com sucesso!</div>
+            <div style={{ color:"#5a5a7a", fontSize:14, lineHeight:1.8 }}>
+              Sua solicitação foi recebida.<br/>Acompanhe o andamento pelo portal do cliente.
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ maxWidth:580, margin:"0 auto", padding:"32px 24px" }}>
+          <div style={{ marginBottom:24 }}>
+            <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22, marginBottom:4 }}>
+              Olá, {clienteNome}!
+            </div>
+            <div style={{ color:"#5a5a7a", fontSize:13 }}>Preencha os detalhes do que você precisa e envie. Simples assim.</div>
+          </div>
+
+          <div style={{ background:"#10101e", border:"1px solid #1e1e35", borderRadius:18, padding:"24px 24px" }}>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Tipo de projeto</div>
+              <input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} placeholder="Ex: Post Instagram, Logotipo, Banner..." style={inp}/>
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Descrição *</div>
+              <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} placeholder="O que precisa ser criado? Qual o objetivo, público-alvo, cores preferidas..." rows={4} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Prazo desejado</div>
+              <input type="date" value={form.prazo} onChange={e=>setForm(f=>({...f,prazo:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Referências</div>
+              <textarea value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} placeholder="Links, Pinterest, exemplos que você gostou..." rows={2} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
+            </div>
+            <div style={{ marginBottom:24 }}>
+              <div style={{ color:"#5a5a7a", fontSize:11, fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Observações adicionais</div>
+              <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))} placeholder="Qualquer detalhe extra..." rows={2} style={{...inp, resize:"vertical", lineHeight:1.6}}/>
+            </div>
+            <button onClick={enviar} disabled={!form.descricao.trim() || loading}
+              style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:11, padding:"14px", color:(!form.descricao.trim()||loading)?"#3a3a5a":"#fff", fontSize:15, fontWeight:800, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"'Syne',sans-serif", transition:"all .15s" }}>
+              {loading ? "Enviando..." : "📤 Enviar solicitação"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1989,79 +2049,202 @@ function PortalPublicoPage() {
   const [solic, setSolic] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [acao, setAcao] = useState({}); // { [id]: "aprovando"|"ajustando" }
+  const [ajusteText, setAjusteText] = useState({});
 
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await supabase.from("solicitacoes").select("*").eq("cliente_id", clienteId).order("created_at", { ascending: false });
+        const { data } = await supabase.from("solicitacoes").select("*").eq("cliente_id", clienteId).order("created_at", { ascending:false });
         setSolic(data || []);
       } catch {}
       setLoading(false);
     })();
   }, []);
 
+  async function aprovar(id) {
+    await supabase.from("solicitacoes").update({ status:"finalizado", resposta_designer: solic.find(s=>s.id===id)?.resposta_designer || "" }).eq("id", id);
+    setSolic(prev => prev.map(s => s.id===id ? {...s, status:"finalizado"} : s));
+    setAcao(a => ({...a, [id]:null}));
+  }
+
+  async function pedirAjuste(id) {
+    const obs = ajusteText[id] || "";
+    const msg = `[Ajuste solicitado pelo cliente]: ${obs}`;
+    await supabase.from("solicitacoes").update({ status:"ajustes", resposta_designer: msg }).eq("id", id);
+    setSolic(prev => prev.map(s => s.id===id ? {...s, status:"ajustes", resposta_designer:msg} : s));
+    setAcao(a => ({...a, [id]:null}));
+    setAjusteText(t => ({...t, [id]:""}));
+  }
+
   const STATUS_CFG = {
-    pendente:      { label:"Aguardando análise", color:"#f59e0b", icon:"⏳" },
-    em_analise:    { label:"Em análise",         color:"#6366f1", icon:"🔍" },
-    em_andamento:  { label:"Em produção",        color:"#06b6d4", icon:"⚙️" },
-    revisao:       { label:"Em revisão",         color:"#8b5cf6", icon:"👀" },
-    finalizado:    { label:"Finalizado",         color:"#10b981", icon:"✅" },
-    cancelado:     { label:"Cancelado",          color:"#64748b", icon:"❌" },
+    pendente:     { label:"Aguardando análise", color:"#f59e0b", icon:"⏳", desc:"Sua solicitação foi recebida e está na fila." },
+    em_andamento: { label:"Em produção",        color:"#06b6d4", icon:"⚙️", desc:"O designer está trabalhando nisso agora." },
+    aprovacao:    { label:"Aguarda sua aprovação", color:"#fb923c", icon:"👀", desc:"O designer finalizou. Revise e aprove ou solicite ajustes." },
+    ajustes:      { label:"Ajustes em andamento", color:"#ef4444", icon:"🔄", desc:"O designer recebeu seu feedback e está ajustando." },
+    finalizado:   { label:"Finalizado ✓",       color:"#10b981", icon:"✅", desc:"Projeto concluído e aprovado." },
+    cancelado:    { label:"Cancelado",           color:"#64748b", icon:"❌", desc:"" },
   };
 
+  const total = solic.length;
+  const finalizados = solic.filter(s=>s.status==="finalizado").length;
+  const emAndamento = solic.filter(s=>!["finalizado","cancelado"].includes(s.status)).length;
+  const aguardando  = solic.filter(s=>s.status==="aprovacao").length;
+
+  const bg = "#080810";
+  const card = "#10101e";
+  const border = "#1e1e35";
+
   return (
-    <div style={{ minHeight:"100vh", background:"#0a0a12", padding:"40px 20px", fontFamily:"'DM Sans',sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
-      <div style={{ maxWidth:680, margin:"0 auto" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:28 }}>
+    <div style={{ minHeight:"100vh", background:bg, fontFamily:"'DM Sans',sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+        * { box-sizing:border-box; }
+        body { margin:0; background:${bg}; }
+        ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:${bg}; } ::-webkit-scrollbar-thumb { background:#2a2a45; border-radius:3px; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ borderBottom:`1px solid ${border}`, padding:"18px 32px", display:"flex", justifyContent:"space-between", alignItems:"center", background:card }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>✦</div>
           <div>
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
-              <div style={{ width:38, height:38, borderRadius:11, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>✦</div>
-              <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22 }}>Portal do Cliente</div>
-            </div>
-            <div style={{ color:"#5a5a7a", fontSize:13 }}>Olá, {clienteNome}! Acompanhe suas solicitações aqui.</div>
+            <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18, lineHeight:1 }}>Meu Portal</div>
+            <div style={{ color:"#5a5a7a", fontSize:12, marginTop:2 }}>Olá, {clienteNome} 👋</div>
           </div>
-          <button onClick={() => setShowForm(!showForm)}
-            style={{ background:"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"9px 16px", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-            + Nova solicitação
-          </button>
+        </div>
+        <button onClick={()=>setShowForm(f=>!f)}
+          style={{ background:"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 16px #6d28d940" }}>
+          + Nova solicitação
+        </button>
+      </div>
+
+      <div style={{ maxWidth:760, margin:"0 auto", padding:"32px 24px" }}>
+
+        {/* Stats cards */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:28 }}>
+          {[
+            { label:"Total de pedidos", value:total,       color:"#818cf8", icon:"📋" },
+            { label:"Em andamento",     value:emAndamento, color:"#06b6d4", icon:"⚙️" },
+            { label:"Aguardando você",  value:aguardando,  color:"#fb923c", icon:"👀" },
+          ].map(s => (
+            <div key={s.label} style={{ background:card, border:`1px solid ${aguardando>0&&s.icon==="👀"?"#fb923c50":border}`, borderRadius:14, padding:"16px 18px", position:"relative", overflow:"hidden" }}>
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${s.color},transparent)` }}/>
+              <div style={{ fontSize:22, marginBottom:6 }}>{s.icon}</div>
+              <div style={{ color:s.color, fontSize:28, fontWeight:800, fontFamily:"'Syne',sans-serif", lineHeight:1 }}>{s.value}</div>
+              <div style={{ color:"#5a5a7a", fontSize:11, marginTop:4 }}>{s.label}</div>
+            </div>
+          ))}
         </div>
 
+        {/* Form nova solicitação */}
         {showForm && (
-          <div style={{ background:"#13131f", border:"1px solid #6366f130", borderRadius:16, padding:24, marginBottom:20 }}>
-            <SolicitarFormInline clienteId={clienteId} clienteNome={clienteNome} onEnviado={() => { setShowForm(false); window.location.reload(); }}/>
+          <div style={{ background:card, border:"1px solid #6366f130", borderRadius:16, padding:24, marginBottom:24 }}>
+            <SolicitarFormInline clienteId={clienteId} clienteNome={clienteNome} onEnviado={()=>{setShowForm(false);window.location.reload();}}/>
+          </div>
+        )}
+
+        {/* Alerta de aprovação pendente */}
+        {aguardando > 0 && (
+          <div style={{ background:"#fb923c12", border:"1px solid #fb923c40", borderRadius:14, padding:"14px 18px", marginBottom:20, display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:24 }}>👀</span>
+            <div>
+              <div style={{ color:"#fb923c", fontWeight:700, fontSize:14 }}>{aguardando} projeto{aguardando>1?"s":""} aguardando sua aprovação!</div>
+              <div style={{ color:"#fb923c88", fontSize:12 }}>Role a página para revisar e aprovar ou solicitar ajustes.</div>
+            </div>
           </div>
         )}
 
         {loading ? (
-          <div style={{ textAlign:"center", padding:60, color:"#5a5a7a" }}>Carregando...</div>
+          <div style={{ textAlign:"center", padding:80, color:"#5a5a7a" }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>Carregando seus projetos...
+          </div>
         ) : solic.length === 0 ? (
-          <div style={{ textAlign:"center", padding:60, color:"#3a3a5a" }}>
-            <div style={{ fontSize:48, marginBottom:12 }}>📭</div>
-            <div style={{ fontSize:15, color:"#5a5a7a" }}>Nenhuma solicitação ainda</div>
-            <div style={{ fontSize:12, marginTop:4 }}>Clique em "+ Nova solicitação" para começar</div>
+          <div style={{ textAlign:"center", padding:80, color:"#3a3a5a" }}>
+            <div style={{ fontSize:56, marginBottom:16 }}>📭</div>
+            <div style={{ fontSize:16, color:"#5a5a7a", marginBottom:6 }}>Nenhuma solicitação ainda</div>
+            <div style={{ fontSize:13, color:"#3a3a5a" }}>Clique em "+ Nova solicitação" para começar.</div>
           </div>
         ) : (
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div style={{ color:"#5a5a7a", fontSize:12, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>Suas solicitações</div>
             {solic.map(s => {
               const cfg = STATUS_CFG[s.status] || STATUS_CFG.pendente;
+              const isAprovacao = s.status === "aprovacao";
+              const acaoAtual = acao[s.id];
+
               return (
-                <div key={s.id} style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"16px 20px" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                <div key={s.id} style={{ background:card, border:`1px solid ${isAprovacao?"#fb923c50":border}`, borderRadius:16, padding:"20px 22px", boxShadow:isAprovacao?"0 0 0 1px #fb923c20":undefined }}>
+                  {/* Topo */}
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
                     <div>
-                      <div style={{ color:"#e8e6f0", fontWeight:700, fontSize:14 }}>{s.tipo || "Solicitação"}</div>
-                      <div style={{ color:"#5a5a7a", fontSize:11, marginTop:2 }}>{new Date(s.created_at).toLocaleDateString("pt-BR", {day:"numeric",month:"long",year:"numeric"})}</div>
+                      <div style={{ color:"#e8e6f0", fontWeight:700, fontSize:15 }}>{s.tipo || "Solicitação"}</div>
+                      <div style={{ color:"#5a5a7a", fontSize:11, marginTop:3 }}>{new Date(s.created_at).toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"})}</div>
                     </div>
-                    <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap" }}>
-                      {cfg.icon} {cfg.label}
-                    </span>
+                    <div style={{ textAlign:"right" }}>
+                      <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:11, fontWeight:700, padding:"5px 12px", borderRadius:20, whiteSpace:"nowrap", display:"inline-block" }}>{cfg.icon} {cfg.label}</span>
+                      {cfg.desc && <div style={{ color:"#5a5a7a", fontSize:11, marginTop:4, maxWidth:200 }}>{cfg.desc}</div>}
+                    </div>
                   </div>
-                  {s.descricao && <div style={{ color:"#8a8aaa", fontSize:13, lineHeight:1.6, marginBottom:s.resposta_designer?8:0 }}>{s.descricao}</div>}
-                  {s.prazo && <div style={{ color:"#5a5a7a", fontSize:12, marginTop:6 }}>📅 Prazo desejado: {new Date(s.prazo+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long"})}</div>}
-                  {s.resposta_designer && (
-                    <div style={{ background:"#6366f110", border:"1px solid #6366f130", borderRadius:10, padding:"10px 14px", marginTop:10 }}>
-                      <div style={{ color:"#818cf8", fontSize:11, fontWeight:700, marginBottom:4 }}>💬 Resposta do designer:</div>
-                      <div style={{ color:"#c4c4e0", fontSize:12, lineHeight:1.6 }}>{s.resposta_designer}</div>
+
+                  {/* Barra de progresso visual */}
+                  <div style={{ display:"flex", gap:4, marginBottom:14 }}>
+                    {["pendente","em_andamento","aprovacao","finalizado"].map((st,i) => {
+                      const steps = ["pendente","em_andamento","aprovacao","ajustes","finalizado"];
+                      const curIdx = steps.indexOf(s.status);
+                      const thisIdx = ["pendente","em_andamento","aprovacao","finalizado"].indexOf(st);
+                      const done = curIdx >= thisIdx || s.status === "finalizado";
+                      const colors = { pendente:"#f59e0b", em_andamento:"#06b6d4", aprovacao:"#fb923c", finalizado:"#10b981" };
+                      return <div key={st} style={{ flex:1, height:3, borderRadius:2, background:done?colors[st]:"#1e1e35", transition:"background .3s" }}/>;
+                    })}
+                  </div>
+
+                  {s.descricao && <div style={{ color:"#8a8aaa", fontSize:13, lineHeight:1.7, marginBottom:10 }}>{s.descricao}</div>}
+                  {s.prazo && <div style={{ color:"#5a5a7a", fontSize:12, marginBottom:8 }}>📅 Prazo solicitado: {new Date(s.prazo+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long"})}</div>}
+
+                  {s.resposta_designer && !s.resposta_designer.startsWith("[Ajuste") && (
+                    <div style={{ background:"#6366f112", border:"1px solid #6366f130", borderRadius:12, padding:"12px 16px", marginTop:8 }}>
+                      <div style={{ color:"#818cf8", fontSize:11, fontWeight:700, marginBottom:4 }}>💬 Mensagem do designer:</div>
+                      <div style={{ color:"#c4c4e0", fontSize:13, lineHeight:1.7 }}>{s.resposta_designer}</div>
+                    </div>
+                  )}
+
+                  {/* Botões de aprovação */}
+                  {isAprovacao && !acaoAtual && (
+                    <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #1e1e35", display:"flex", gap:10, flexWrap:"wrap" }}>
+                      <button onClick={()=>aprovar(s.id)}
+                        style={{ background:"linear-gradient(135deg,#059669,#10b981)", border:"none", borderRadius:10, padding:"10px 22px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 14px #10b98140" }}>
+                        ✅ Aprovar projeto
+                      </button>
+                      <button onClick={()=>setAcao(a=>({...a,[s.id]:"ajustando"}))}
+                        style={{ background:"#ef444418", border:"1px solid #ef444440", borderRadius:10, padding:"10px 18px", color:"#ef4444", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        🔄 Solicitar ajustes
+                      </button>
+                    </div>
+                  )}
+
+                  {isAprovacao && acaoAtual === "ajustando" && (
+                    <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid #1e1e35" }}>
+                      <div style={{ color:"#e8e6f0", fontSize:13, fontWeight:600, marginBottom:8 }}>O que precisa ser ajustado?</div>
+                      <textarea value={ajusteText[s.id]||""} onChange={e=>setAjusteText(t=>({...t,[s.id]:e.target.value}))}
+                        placeholder="Descreva o que deseja mudar..." rows={3}
+                        style={{ width:"100%", background:"#0f0f1e", border:"1px solid #2a2a45", borderRadius:10, padding:"10px 14px", color:"#e8e6f0", fontSize:13, outline:"none", fontFamily:"inherit", resize:"vertical", lineHeight:1.6, marginBottom:10 }}/>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={()=>pedirAjuste(s.id)}
+                          style={{ background:"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:9, padding:"9px 20px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                          Enviar feedback
+                        </button>
+                        <button onClick={()=>setAcao(a=>({...a,[s.id]:null}))}
+                          style={{ background:"none", border:"1px solid #2a2a45", borderRadius:9, padding:"9px 14px", color:"#5a5a7a", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {s.status === "finalizado" && (
+                    <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:8, color:"#10b981", fontSize:13, fontWeight:600 }}>
+                      <span>✅</span> Projeto aprovado e finalizado!
                     </div>
                   )}
                 </div>
@@ -2255,7 +2438,7 @@ export default function App() {
           {view==="notes"       && <Notes notes={notes} setNotes={setNotes}/>}
           {view==="relatorio"   && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
           {view==="formulario"  && <FormularioPedido leads={leads}/>}
-          {view==="portal"      && <PortalCliente leads={leads}/>}
+          {view==="portal"      && <PortalCliente leads={leads} setDemandas={setDemandas}/>}
         </div>
       </div>
 
