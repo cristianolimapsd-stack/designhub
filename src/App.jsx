@@ -2052,34 +2052,24 @@ function PortalCliente({ leads, setDemandas }) {
         </div>
       )}
 
-      {solic.length > 0 && (() => {
-        const solicFiltradas = solic.filter(s => {
-          const dataOk = !filtroData || (s.created_at||"").startsWith(filtroData);
-          const statusOk = !filtroStatus || s.status === filtroStatus;
-          return dataOk && statusOk;
-        });
-        const diasUnicos = [...new Set(solic.map(s => (s.created_at||"").split("T")[0]))].sort().reverse();
-        return (
-        <>
-        <div style={{ display:"flex", gap:10, marginTop:12, marginBottom:4, flexWrap:"wrap", alignItems:"center" }}>
-          <select value={filtroData} onChange={e=>setFiltroData(e.target.value)} style={{ background:C.card, border:`1px solid ${filtroData?C.accent:C.border}`, borderRadius:9, padding:"7px 12px", color:filtroData?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
-            <option value="">📅 Todos os dias</option>
-            {diasUnicos.map(d => <option key={d} value={d}>{new Date(d+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"numeric",month:"short"})}</option>)}
-          </select>
-          <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ background:C.card, border:`1px solid ${filtroStatus?C.accent:C.border}`, borderRadius:9, padding:"7px 12px", color:filtroStatus?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
-            <option value="">🏷 Todos os status</option>
-            {Object.entries(STATUS_CFG).map(([k,v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
-          </select>
-          {(filtroData||filtroStatus) && (
-            <button onClick={()=>{setFiltroData("");setFiltroStatus("");}} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 12px", color:C.muted, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✕ Limpar</button>
-          )}
-          <span style={{ color:C.muted, fontSize:12, marginLeft:"auto" }}>{solicFiltradas.length} de {solic.length} solicitação{solic.length!==1?"ões":""}</span>
-        </div>
-        {solicFiltradas.length === 0 && (
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:24, textAlign:"center", color:C.muted, fontSize:13 }}>Nenhuma solicitação com esse filtro.</div>
-        )}
-        <div style={{ display:"flex", flexDirection:"column", gap:12, marginTop:4 }}>
-          {solicFiltradas.map(s => {
+      {solic.length > 0 && (
+        <div>
+          <div style={{ display:"flex", gap:10, marginTop:12, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
+            <select value={filtroData} onChange={e=>setFiltroData(e.target.value)} style={{ background:C.card, border:`1px solid ${filtroData?C.accent:C.border}`, borderRadius:9, padding:"7px 12px", color:filtroData?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+              <option value="">📅 Todos os dias</option>
+              {[...new Set(solic.map(s=>(s.created_at||"").split("T")[0]))].sort().reverse().map(d=>(
+                <option key={d} value={d}>{new Date(d+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"numeric",month:"short"})}</option>
+              ))}
+            </select>
+            <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ background:C.card, border:`1px solid ${filtroStatus?C.accent:C.border}`, borderRadius:9, padding:"7px 12px", color:filtroStatus?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+              <option value="">🏷 Todos os status</option>
+              {Object.entries(STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
+            </select>
+            {(filtroData||filtroStatus)&&<button onClick={()=>{setFiltroData("");setFiltroStatus("");}} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 12px", color:C.muted, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✕ Limpar</button>}
+            <span style={{ color:C.muted, fontSize:12, marginLeft:"auto" }}>{solic.filter(s=>(!filtroData||(s.created_at||"").startsWith(filtroData))&&(!filtroStatus||s.status===filtroStatus)).length} de {solic.length}</span>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {solic.filter(s=>(!filtroData||(s.created_at||"").startsWith(filtroData))&&(!filtroStatus||s.status===filtroStatus)).map(s => {
             const cfg = STATUS_CFG[s.status] || STATUS_CFG.pendente;
             const open = editId === s.id;
             const jaNoKanban = !!kanbanIds[s.id];
@@ -2123,6 +2113,7 @@ function PortalCliente({ leads, setDemandas }) {
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </div>
@@ -2572,6 +2563,49 @@ export default function App() {
   const [sideOpen, setSideOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+
+  // ── Sync: reconstrói demandas vinculadas a partir do Supabase no boot ──────
+  useEffect(() => {
+    async function syncDemandas() {
+      try {
+        const { data: solics } = await supabase.from("solicitacoes").select("*");
+        if (!solics || solics.length === 0) return;
+        setDemandas(current => {
+          const cur = Array.isArray(current) ? current : [];
+          // Ids de solicitações já no kanban
+          const solicIdsExistentes = new Set(cur.filter(d=>d.solicitacao_id).map(d=>String(d.solicitacao_id)));
+          // Atualiza status de demandas existentes
+          const updated = cur.map(d => {
+            if (!d.solicitacao_id) return d;
+            const s = solics.find(s=>String(s.id)===String(d.solicitacao_id));
+            return s ? {...d, status: s.status} : d;
+          });
+          // Adiciona demandas para solicitações que não estão no kanban
+          const novas = solics
+            .filter(s => !solicIdsExistentes.has(String(s.id)) && s.status !== "pendente")
+            .map(s => ({
+              id: Date.now() + Math.random(),
+              titulo: s.tipo || "Solicitação",
+              descricao: s.descricao || "",
+              prazo: s.prazo || "",
+              valor: 0,
+              status: s.status,
+              cliente_id: Number(s.cliente_id) || null,
+              tag: s.tipo || "Solicitação",
+              solicitacao_id: s.id,
+              data_criacao: (s.created_at||"").split("T")[0],
+            }));
+          if (novas.length === 0 && JSON.stringify(updated) === JSON.stringify(cur)) return cur;
+          // Atualiza mapa kanban
+          const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+          novas.forEach(d => { kanbanMap[String(d.solicitacao_id)] = d.id; });
+          localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+          return [...updated, ...novas];
+        });
+      } catch(e) { console.error("syncDemandas:", e); }
+    }
+    syncDemandas();
+  }, []);
 
   // ── Notificações de solicitações novas ─────────────────────────────────────
   const [solicPendentes, setSolicPendentes] = useState(0);
