@@ -1209,8 +1209,8 @@ function Notes({ notes, setNotes }) {
 
 function Kanban({ demandas, setDemandas, leads }) {
   // ref sempre atualizado para move/del terem acesso ao estado mais recente
-  const demandasRef = React.useRef(demandas);
-  React.useEffect(() => { demandasRef.current = demandas; }, [demandas]);
+  const demandasRef = useRef(demandas);
+  useEffect(() => { demandasRef.current = demandas; }, [demandas]);
   const today = new Date().toISOString().split("T")[0];
   const [modal, setModal] = useState(false);
   const [dragId, setDragId] = useState(null);
