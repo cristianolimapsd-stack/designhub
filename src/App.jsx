@@ -1965,13 +1965,11 @@ function PortalCliente({ leads, setDemandas }) {
   const carregarSolic = React.useCallback(() => {
     if (!selCli) return;
     setLoading(true);
-    const demandas = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
-    const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}");
-    Object.entries(kanbanMap).forEach(([solicId, demandaId]) => {
-      const dem = demandas.find(d=>String(d.id)===String(demandaId));
-      if (dem) supabase.from("solicitacoes").update({ status: dem.status }).eq("id", Number(solicId));
-    });
-    supabase.from("solicitacoes").select("*").eq("cliente_id", selCli).order("created_at", { ascending:false })
+    // Busca direto do Supabase — o Kanban já mantém o status atualizado via move()
+    supabase.from("solicitacoes")
+      .select("*")
+      .or(`cliente_id.eq.${selCli},cliente_id.eq.${Number(selCli)||0}`)
+      .order("created_at", { ascending:false })
       .then(({ data }) => { setSolic(data || []); setLoading(false); });
   }, [selCli]);
 
@@ -2259,7 +2257,12 @@ function PortalPublicoPage() {
 
   const carregarPortal = async () => {
     try {
-      const { data } = await supabase.from("solicitacoes").select("*").eq("cliente_id", clienteId).order("created_at", { ascending:false });
+      // Busca por cliente_id como string E como número para garantir compatibilidade
+      const { data } = await supabase
+        .from("solicitacoes")
+        .select("*")
+        .or(`cliente_id.eq.${clienteId},cliente_id.eq.${Number(clienteId)||0}`)
+        .order("created_at", { ascending:false });
       setSolic(data || []);
     } catch {}
     setLoading(false);
