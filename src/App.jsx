@@ -1817,7 +1817,6 @@ function PortalCliente({ leads, setDemandas }) {
       id: newId,
       titulo: s.tipo || "Solicitação do cliente",
       descricao: [s.descricao, s.referencias && ("Refs: "+s.referencias), s.observacoes && ("Obs: "+s.observacoes)].filter(Boolean).join(" | "),
-"),
       prazo: s.prazo || "",
       valor: 0,
       status: "triagem",
