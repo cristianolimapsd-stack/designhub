@@ -1,19 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// PROSPECÇÃO — Módulo FluxioHUB  (com Supabase)
-// ══════════════════════════════════════════════════════════════════════════════
-//
-// COMO INTEGRAR NO App.jsx — só 3 linhas:
-//
-// 1) No topo do App.jsx, após os outros imports:
-//       import { Prospeccao } from './Prospeccao';
-//
-// 2) No array `nav`, antes da linha do "leads":
-//       { id:"prospeccao", label:"Prospecção 🎯", icon:"leads", sec:"gestao" },
-//
-// 3) Onde ficam as views (perto do fim do App.jsx), antes do {view==="leads"...}:
-//       {view==="prospeccao" && <Prospeccao/>}
-//
-// BANCO DE DADOS: rode o arquivo criar_tabela_prospects.sql no Supabase primeiro!
+// PROSPECÇÃO — Módulo FluxioHUB
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useRef, useEffect } from "react";
@@ -31,7 +17,6 @@ const STAGES = [
 ];
 
 const CANAIS = ["Instagram/DM","WhatsApp","LinkedIn","Email","Indicação","Pessoalmente"];
-
 const CANAL_ICON = {
   "Instagram/DM":"📸","WhatsApp":"💬","LinkedIn":"💼",
   "Email":"📧","Indicação":"🤝","Pessoalmente":"🤙",
@@ -57,23 +42,23 @@ const NICHOS = [
 ];
 
 const ABORDAGENS = [
-  { id:"roast",      icon:"🔥", nome:"Roast Gentil",        desc:"Aponta algo fraco com bom humor. Eles gargalham e contratam.", instrucao:"Comece com uma observação específica e engraçada sobre algo fraco no visual deles. Seja como um amigo sendo honesto. NÃO seja genérico. Personalize para o segmento e nome do prospect." },
-  { id:"diagnostico",icon:"🎁", nome:"Diagnóstico Grátis",  desc:"Oferece valor antes de pedir qualquer coisa. Sem pitch.",      instrucao:"Ofereça um diagnóstico gratuito de 15 min do visual/marca deles. Mencione 1-2 pontos específicos do segmento. Tom: 'não estou te vendendo nada, só quero mostrar o que vejo'. Máx 4 linhas." },
-  { id:"gancho",     icon:"🪝", nome:"Gancho de Curiosidade",desc:"Começa sem revelar que é designer. Desperta curiosidade.",      instrucao:"Comece com pergunta ou observação que desperta curiosidade genuína sobre o negócio deles. Só depois mencione que é designer." },
-  { id:"conselho",   icon:"🤔", nome:"Pedido de Conselho",   desc:"Você pede a opinião deles. Psicologia reversa — adoram isso.",  instrucao:"Aborde pedindo a opinião deles sobre algo do segmento. Parece perspectiva de cliente. Só no final mencione que é designer." },
-  { id:"historia",   icon:"📖", nome:"Mini-história",        desc:"Uma história rápida de como transformou alguém do mesmo segmento.", instrucao:"Mini-história de 3-4 linhas sobre como ajudou negócio parecido. Pode ser fictício mas realista. Foque na transformação e resultado." },
-  { id:"direto",     icon:"⚡", nome:"Direto e Real",        desc:"Zero enrolação, zero corporativês. Só você sendo humano.",     instrucao:"Seja completamente direto e humano. Zero papo de vendedor, zero formalidade. Fale como numa festa. Máximo 3 linhas. Sem emoji em excesso." },
-  { id:"provocacao", icon:"😏", nome:"Provocação",           desc:"Um desafio leve. Funciona com empreendedores confiantes.",     instrucao:"Lance provocação leve — 'aposto que nunca pensaram no quanto o visual está custando clientes'. Tom confiante, não arrogante." },
-  { id:"reativacao", icon:"🔄", nome:"Reativação",           desc:"Para contatos frios. Retoma sem ser chato.",                   instrucao:"Follow-up para quem esfriou. NÃO mencione tentativas anteriores. Aborde como se tivesse pensado neles por um motivo genuíno agora." },
+  { id:"roast",       icon:"🔥", nome:"Roast Gentil",         desc:"Aponta algo fraco com bom humor. Eles gargalham e contratam.", instrucao:"Aponte 1 coisa específica e fraca no visual deles, com bom humor. Como amigo honesto. Personalizado pro segmento. Máx 3 linhas." },
+  { id:"diagnostico", icon:"🎁", nome:"Diagnóstico Grátis",   desc:"Oferece valor antes de pedir qualquer coisa. Sem pitch.",      instrucao:"Ofereça diagnóstico gratuito de 15min do visual. Mencione 1-2 pontos do segmento. Tom: 'não estou te vendendo nada'. Máx 3 linhas." },
+  { id:"gancho",      icon:"🪝", nome:"Gancho de Curiosidade",desc:"Começa sem revelar que é designer. Desperta curiosidade.",     instrucao:"Comece com pergunta/observação que desperta curiosidade sobre o negócio. Só depois mencione que é designer. Curto e direto." },
+  { id:"conselho",    icon:"🤔", nome:"Pedido de Conselho",   desc:"Você pede a opinião deles. Psicologia reversa — adoram isso.", instrucao:"Peça opinião deles sobre algo do segmento. Parece perspectiva de cliente. Só no final mencione que é designer. 3 linhas max." },
+  { id:"historia",    icon:"📖", nome:"Mini-história",        desc:"Uma história rápida de como transformou alguém do mesmo segmento.", instrucao:"Mini-história de 3 linhas sobre como ajudou negócio parecido. Foque na transformação. Pode ser fictício mas realista." },
+  { id:"direto",      icon:"⚡", nome:"Direto e Real",        desc:"Zero enrolação, zero corporativês. Só você sendo humano.",    instrucao:"Seja direto e humano. Zero papo de vendedor, zero formalidade. Como numa festa. Máximo 3 linhas. Sem emoji em excesso." },
+  { id:"provocacao",  icon:"😏", nome:"Provocação",           desc:"Um desafio leve. Funciona com empreendedores confiantes.",    instrucao:"Lance provocação leve: 'aposto que nunca pensaram no quanto o visual está custando clientes'. Tom confiante, não arrogante. 2-3 linhas." },
+  { id:"reativacao",  icon:"🔄", nome:"Reativação",           desc:"Para contatos frios. Retoma sem ser chato.",                  instrucao:"Follow-up pra quem esfriou. NÃO mencione tentativas anteriores. Aborde como se tivesse pensado neles por motivo genuíno. 2-3 linhas." },
 ];
 
-// ─── Chama Claude API ─────────────────────────────────────────────────────────
-function callClaude(messages, system = "", maxTokens = 1000) {
+// ─── API — usa Haiku que é 4x mais rápido ────────────────────────────────────
+function callClaude(messages, system = "", maxTokens = 400) {
   return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: maxTokens,
       system,
       messages,
@@ -90,9 +75,9 @@ function diasAtras(dateStr) {
 
 function Badge({ dias, stage }) {
   if (["fechado","perdido"].includes(stage)) return null;
-  if (dias === null)    return <span style={bs("#6366f1","#818cf8")}>Novo</span>;
-  if (dias >= 7)  return <span style={bs("#ef4444","#ef4444")}>⚠️ {dias}d sumido</span>;
-  if (dias >= 3)  return <span style={bs("#f59e0b","#f59e0b")}>🕐 {dias}d atrás</span>;
+  if (dias === null)  return <span style={bs("#6366f1","#818cf8")}>Novo</span>;
+  if (dias >= 7)      return <span style={bs("#ef4444","#ef4444")}>⚠️ {dias}d sumido</span>;
+  if (dias >= 3)      return <span style={bs("#f59e0b","#f59e0b")}>🕐 {dias}d atrás</span>;
   return <span style={bs("#10b981","#10b981")}>✓ Em dia</span>;
 }
 function bs(bg, color) {
@@ -103,9 +88,11 @@ function bs(bg, color) {
 // PIPELINE
 // ─────────────────────────────────────────────────────────────────────────────
 function Pipeline({ prospects, setProspects, onMensagem }) {
-  const [filtro,   setFiltro]   = useState("todos");
-  const [showAdd,  setShowAdd]  = useState(false);
-  const [expanded, setExpanded] = useState(null);
+  const [filtro,    setFiltro]   = useState("todos");
+  const [showAdd,   setShowAdd]  = useState(false);
+  const [expanded,  setExpanded] = useState(null);
+  const [loadDor,   setLoadDor]  = useState(null); // id do prospect sendo analisado
+  const [editNota,  setEditNota] = useState({}); // { [id]: texto }
   const form = useRef({ name:"", segment:"", canal:"Instagram/DM", referral:"", notes:"" });
 
   const urgentes = prospects.filter(p =>
@@ -118,10 +105,28 @@ function Pipeline({ prospects, setProspects, onMensagem }) {
     if (!d.name.trim()) return;
     setProspects(prev => [...prev, {
       id: Date.now(), ...d, stage:"identificado",
+      dor_ia: "", notas_dor: "",
       last_contact: null, created_at: new Date().toISOString(),
     }]);
     setShowAdd(false);
     form.current = { name:"", segment:"", canal:"Instagram/DM", referral:"", notes:"" };
+  }
+
+  async function analisarDor(p) {
+    setLoadDor(p.id);
+    const contexto = [p.name, p.segment, p.canal, p.notes].filter(Boolean).join(", ");
+    const txt = await callClaude(
+      [{ role:"user", content:`Prospect para prospecção de design: ${contexto}\n\nDiga em 3 pontos curtos:\n1. Provável fraqueza visual/design desse negócio\n2. A dor real que isso causa (perda de cliente, credibilidade)\n3. Gancho de abordagem ideal\n\nSeja específico e cirúrgico. Máx 100 palavras.` }],
+      "Você é designer freelancer experiente analisando prospects para prospecção. Seja direto e prático.",
+      350
+    );
+    setProspects(prev => prev.map(x => x.id === p.id ? { ...x, dor_ia: txt } : x));
+    setLoadDor(null);
+  }
+
+  function salvarNota(id) {
+    const nota = editNota[id] ?? "";
+    setProspects(prev => prev.map(x => x.id === id ? { ...x, notas_dor: nota } : x));
   }
 
   const btn = (bg, color, border) => ({
@@ -145,7 +150,7 @@ function Pipeline({ prospects, setProspects, onMensagem }) {
           {[{ id:"todos", label:`Todos (${prospects.length})`, color:"#6366f1" }, ...STAGES].map(s => (
             <button key={s.id} onClick={() => setFiltro(s.id)}
               style={{ background:filtro===s.id?`${s.color}20`:"transparent", border:`1px solid ${filtro===s.id?s.color:"#2a2a45"}`, borderRadius:20, padding:"5px 14px", color:filtro===s.id?s.color:"#6a6a8a", cursor:"pointer", fontSize:11, fontWeight:600, fontFamily:"inherit" }}>
-              {s.icon||""} {s.label || `${s.label} (${prospects.filter(p=>p.stage===s.id).length})`}
+              {s.icon||""} {s.label}
             </button>
           ))}
         </div>
@@ -168,6 +173,8 @@ function Pipeline({ prospects, setProspects, onMensagem }) {
           const stage = STAGES.find(s => s.id === p.stage) || STAGES[0];
           const dias  = diasAtras(p.last_contact);
           const aberto = expanded === p.id;
+          const notaLocal = editNota[p.id] !== undefined ? editNota[p.id] : (p.notas_dor || "");
+
           return (
             <div key={p.id}
               onClick={() => setExpanded(aberto ? null : p.id)}
@@ -178,9 +185,12 @@ function Pipeline({ prospects, setProspects, onMensagem }) {
                     <span style={{ fontWeight:700, fontSize:15, color:"#e8e6f0" }}>{p.name}</span>
                     <span style={{ fontSize:12, color:"#5a5a7a" }}>{CANAL_ICON[p.canal]} {p.canal}</span>
                     <Badge dias={dias} stage={p.stage}/>
+                    {(p.dor_ia || p.notas_dor) && (
+                      <span style={{ background:"#6366f118", color:"#818cf8", fontSize:10, padding:"2px 8px", borderRadius:20, fontWeight:700 }}>🧠 Dor mapeada</span>
+                    )}
                   </div>
-                  {p.segment  && <div style={{ fontSize:12, color:"#5a5a7a", marginTop:3 }}>{p.segment}{p.referral?` · via ${p.referral}`:""}</div>}
-                  {p.notes    && <div style={{ fontSize:11, color:"#3a3a5a", marginTop:3, fontStyle:"italic" }}>"{p.notes}"</div>}
+                  {p.segment && <div style={{ fontSize:12, color:"#5a5a7a", marginTop:3 }}>{p.segment}{p.referral?` · via ${p.referral}`:""}</div>}
+                  {p.notes   && <div style={{ fontSize:11, color:"#3a3a5a", marginTop:3, fontStyle:"italic" }}>"{p.notes}"</div>}
                 </div>
                 <div style={{ background:`${stage.color}20`, color:stage.color, fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, flexShrink:0, marginLeft:10 }}>
                   {stage.icon} {stage.label}
@@ -190,8 +200,10 @@ function Pipeline({ prospects, setProspects, onMensagem }) {
               {aberto && (
                 <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid #2a2a45" }}
                   onClick={e => e.stopPropagation()}>
+
+                  {/* ── Mover estágio ── */}
                   <div style={{ fontSize:11, color:"#5a5a7a", fontWeight:700, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.08em" }}>Mover para:</div>
-                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
                     {STAGES.map(s => (
                       <button key={s.id}
                         onClick={() => setProspects(prev => prev.map(x => x.id===p.id ? {...x, stage:s.id, last_contact:new Date().toISOString()} : x))}
@@ -200,6 +212,52 @@ function Pipeline({ prospects, setProspects, onMensagem }) {
                       </button>
                     ))}
                   </div>
+
+                  {/* ── Análise de Dor da IA ── */}
+                  <div style={{ background:"#0f0f1a", border:"1px solid #2a2a45", borderRadius:12, padding:"14px 16px", marginBottom:12 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                      <span style={{ color:"#818cf8", fontWeight:700, fontSize:12 }}>🧠 Análise de Dor — IA</span>
+                      <button
+                        onClick={() => analisarDor(p)}
+                        disabled={loadDor === p.id}
+                        style={{ background:"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:7, padding:"5px 12px", color:"#fff", fontSize:11, fontWeight:700, cursor:loadDor===p.id?"wait":"pointer", fontFamily:"inherit", opacity:loadDor===p.id?0.7:1 }}>
+                        {loadDor === p.id ? "⏳ Analisando..." : p.dor_ia ? "🔄 Reanalisar" : "⚡ Analisar agora"}
+                      </button>
+                    </div>
+                    {p.dor_ia ? (
+                      <div style={{ color:"#c4c4e0", fontSize:12, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{p.dor_ia}</div>
+                    ) : (
+                      <div style={{ color:"#3a3a5a", fontSize:12, fontStyle:"italic" }}>
+                        Clique em "Analisar agora" para a IA mapear as dores e oportunidades desse prospect.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Suas observações pessoais ── */}
+                  <div style={{ background:"#0f0f1a", border:"1px solid #2a2a45", borderRadius:12, padding:"14px 16px", marginBottom:14 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                      <span style={{ color:"#f59e0b", fontWeight:700, fontSize:12 }}>✍️ Minhas observações</span>
+                      {(editNota[p.id] !== undefined) && (
+                        <button
+                          onClick={() => { salvarNota(p.id); setEditNota(prev => { const n={...prev}; delete n[p.id]; return n; }); }}
+                          style={{ background:"#10b98120", border:"1px solid #10b98140", borderRadius:7, padding:"4px 10px", color:"#10b981", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                          💾 Salvar
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={notaLocal}
+                      onChange={e => setEditNota(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      placeholder="O que você percebeu sobre esse prospect? Algo que a IA não captou, comportamento nas redes, objeções prováveis, timing..."
+                      rows={3}
+                      style={{ width:"100%", background:"#13131f", border:"1px solid #2a2a45", borderRadius:8, padding:"9px 12px", color:"#e8e6f0", fontSize:12, outline:"none", fontFamily:"inherit", resize:"vertical", lineHeight:1.7, boxSizing:"border-box" }}
+                    />
+                    {p.notas_dor && editNota[p.id] === undefined && (
+                      <div style={{ color:"#5a5a7a", fontSize:10, marginTop:4 }}>✓ Salvo — clique no campo para editar</div>
+                    )}
+                  </div>
+
+                  {/* ── Ações ── */}
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                     <button style={btn("#10b98120","#10b981","#10b98140")}
                       onClick={() => setProspects(prev => prev.map(x => x.id===p.id ? {...x, last_contact:new Date().toISOString()} : x))}>
@@ -280,13 +338,12 @@ function QuemAbordar({ onAdd }) {
   async function gerarNichos() {
     setLoadNichos(true); setAiNichos([]);
     const txt = await callClaude(
-      [{ role:"user", content:`8 tipos de negócios locais no Brasil em 2026 com maior urgência para melhorar design/identidade visual e que pagam bem por isso.
-Responda APENAS JSON sem markdown:
-[{"nicho":"","dor":"problema visual em 1 frase","oportunidade":"por que pagam bem","abordagem":"como o designer aparece para eles em 1 frase"}]` }],
-      "Responda apenas JSON puro. Sem markdown, sem texto fora do JSON.", 1500
+      [{ role:"user", content:`Liste 6 tipos de negócios locais no Brasil em 2026 com maior urgência para melhorar design/identidade visual e que pagam bem.\nSomente JSON:\n[{"nicho":"","dor":"1 frase","oportunidade":"por que pagam","abordagem":"como aparecer pra eles"}]` }],
+      "Responda apenas JSON puro. Sem markdown, sem texto fora do JSON.",
+      800
     );
     try { setAiNichos(JSON.parse(txt.replace(/```json|```/g,"").trim())); }
-    catch { setAiNichos([{ nicho:"Erro", dor:"Tente novamente", oportunidade:"", abordagem:"" }]); }
+    catch { setAiNichos([{ nicho:"Erro ao gerar", dor:"Tente novamente", oportunidade:"", abordagem:"" }]); }
     setLoadNichos(false);
   }
 
@@ -294,15 +351,9 @@ Responda APENAS JSON sem markdown:
     if (!diagUrl) return;
     setLoadDiag(true); setDiagRes("");
     const txt = await callClaude(
-      [{ role:"user", content:`Analise este negócio para um designer freelancer prospectar: ${diagUrl}
-
-Como designer experiente, seja direto sobre:
-1. O que está VISIVELMENTE fraco no design/identidade visual
-2. A DOR REAL que isso causa (perda de clientes, falta de credibilidade)
-3. O GANCHO perfeito — uma observação específica que vai fazer eles ouvirem
-
-Máx 150 palavras. Seja cirúrgico, não genérico.` }],
-      "Você é um designer freelancer experiente fazendo análise de prospecção."
+      [{ role:"user", content:`Analise para prospecção de design: "${diagUrl}"\n\n1. Fraqueza visual provável\n2. Dor real (perda de cliente, credibilidade)\n3. Gancho de abordagem específico\n\nMáx 100 palavras. Seja cirúrgico.` }],
+      "Você é designer freelancer experiente fazendo análise de prospecção.",
+      350
     );
     setDiagRes(txt); setLoadDiag(false);
   }
@@ -310,64 +361,79 @@ Máx 150 palavras. Seja cirúrgico, não genérico.` }],
   return (
     <div>
       <div style={{ background:"linear-gradient(135deg,#6d28d915,#13131f)", border:"1px solid #6366f130", borderRadius:16, padding:"20px 22px", marginBottom:24 }}>
-        <div style={{ fontWeight:700, fontSize:15, color:"#e8e6f0", marginBottom:6 }}>🔍 Diagnóstico de Dor com IA</div>
-        <div style={{ fontSize:13, color:"#6a6a8a", marginBottom:14 }}>Cole o Instagram, site ou nome do negócio. A IA analisa o que está fraco e te dá o gancho perfeito.</div>
+        <div style={{ fontWeight:700, fontSize:15, color:"#e8e6f0", marginBottom:6 }}>🔍 Diagnóstico de Perfil</div>
+        <div style={{ fontSize:13, color:"#6a6a8a", marginBottom:14 }}>Cole o Instagram, site ou nome do negócio. A IA analisa o que está fraco e te dá o gancho ideal.</div>
         <div style={{ display:"flex", gap:8 }}>
           <input value={diagUrl} onChange={e => setDiagUrl(e.target.value)}
             placeholder="@clinicaestetica_sp · www.restaurante.com.br · 'Dentista João Silva'"
             style={{ flex:1, background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:9, padding:"10px 13px", color:"#e8e6f0", fontSize:13, outline:"none", fontFamily:"inherit" }}/>
           <button onClick={diagnosticar} disabled={!diagUrl || loadDiag}
             style={{ background:"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:9, padding:"10px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:loadDiag?"wait":"pointer", fontFamily:"inherit", opacity:loadDiag?0.7:1, whiteSpace:"nowrap" }}>
-            {loadDiag ? "Analisando..." : "Diagnosticar 🎯"}
+            {loadDiag ? "⏳ Analisando..." : "Analisar 🎯"}
           </button>
         </div>
         {diagRes && (
-          <div style={{ marginTop:14, background:"#0f0f1a", border:"1px solid #6366f130", borderRadius:10, padding:"14px 16px" }}>
-            <div style={{ fontSize:11, color:"#818cf8", fontWeight:700, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.08em" }}>Análise</div>
-            <div style={{ color:"#e8e6f0", fontSize:13, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{diagRes}</div>
-            <button onClick={() => navigator.clipboard.writeText(diagRes)}
-              style={{ background:"#6366f115", border:"1px solid #6366f130", borderRadius:7, padding:"6px 12px", color:"#818cf8", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginTop:10 }}>
-              📋 Copiar análise
-            </button>
+          <div style={{ marginTop:16, background:"#13131f", border:"1px solid #2a2a45", borderRadius:12, padding:"14px 16px" }}>
+            <div style={{ color:"#818cf8", fontWeight:700, fontSize:12, marginBottom:8 }}>Resultado da análise:</div>
+            <div style={{ color:"#c4c4e0", fontSize:13, lineHeight:1.8, whiteSpace:"pre-wrap" }}>{diagRes}</div>
+            <div style={{ marginTop:12, display:"flex", gap:8 }}>
+              <button
+                onClick={() => {
+                  const nome = diagUrl.replace(/https?:\/\//,"").replace(/www\./,"").split("/")[0].split("?")[0];
+                  onAdd(nome);
+                  alert("Adicionado ao pipeline! Vá em ⚡ Pipeline e expanda o card para salvar essa análise.");
+                }}
+                style={{ background:"#6366f120", border:"1px solid #6366f140", borderRadius:8, padding:"7px 14px", color:"#818cf8", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                + Adicionar ao pipeline
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      <div style={{ marginBottom:20 }}>
-        <div style={{ fontSize:12, color:"#5a5a7a", fontWeight:700, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.08em" }}>Nichos quentes — clique para adicionar no pipeline</div>
-        <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontWeight:700, fontSize:14, color:"#e8e6f0", marginBottom:12 }}>🎯 Nichos com alta oportunidade</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px,1fr))", gap:10 }}>
           {NICHOS.map(n => (
-            <button key={n.nome} onClick={() => onAdd(n.nome)} title={`Dor: ${n.dor}`}
-              style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:20, padding:"6px 14px", color:"#a0a0c0", fontSize:12, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}
-              onMouseEnter={e=>{ e.currentTarget.style.background="#6366f115"; e.currentTarget.style.borderColor="#6366f1"; e.currentTarget.style.color="#818cf8"; }}
-              onMouseLeave={e=>{ e.currentTarget.style.background="#1a1a2e";   e.currentTarget.style.borderColor="#2a2a45";  e.currentTarget.style.color="#a0a0c0"; }}>
-              {n.nome}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <button onClick={gerarNichos} disabled={loadNichos}
-        style={{ background:"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"11px 22px", color:"#fff", fontSize:13, fontWeight:700, cursor:loadNichos?"wait":"pointer", fontFamily:"inherit", marginBottom:20, opacity:loadNichos?0.7:1 }}>
-        {loadNichos ? "🤖 Analisando mercado..." : "🤖 Gerar oportunidades com IA"}
-      </button>
-
-      {aiNichos.length > 0 && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:14 }}>
-          {aiNichos.map((n, i) => (
-            <div key={i} style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"16px 18px" }}>
-              <div style={{ fontWeight:700, fontSize:14, color:"#e8e6f0", marginBottom:6 }}>{n.nicho}</div>
-              <div style={{ fontSize:12, color:"#ef4444", background:"#ef444410", borderRadius:7, padding:"5px 10px", marginBottom:8 }}>❗ {n.dor}</div>
-              <div style={{ fontSize:12, color:"#10b981", marginBottom:6 }}>💰 {n.oportunidade}</div>
-              <div style={{ fontSize:12, color:"#818cf8", background:"#6366f110", borderRadius:7, padding:"6px 10px", marginBottom:10 }}>🎯 {n.abordagem}</div>
-              <button onClick={() => onAdd(n.nicho)}
-                style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, padding:7, color:"#a0a0c0", fontSize:12, cursor:"pointer", fontFamily:"inherit", width:"100%", fontWeight:600 }}>
-                + Adicionar ao Pipeline
+            <div key={n.nome}
+              style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:12, padding:"13px 15px", cursor:"default" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor="#6366f150"}
+              onMouseLeave={e => e.currentTarget.style.borderColor="#1e1e30"}>
+              <div style={{ fontWeight:700, fontSize:13, color:"#e8e6f0", marginBottom:5 }}>{n.nome}</div>
+              <div style={{ fontSize:12, color:"#5a5a7a", marginBottom:10, lineHeight:1.5 }}>{n.dor}</div>
+              <button onClick={() => onAdd(n.nome)}
+                style={{ background:"#6366f118", border:"1px solid #6366f130", borderRadius:7, padding:"5px 12px", color:"#818cf8", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                + Adicionar ao pipeline
               </button>
             </div>
           ))}
         </div>
-      )}
+      </div>
+
+      <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"18px 20px" }}>
+        <div style={{ fontWeight:700, fontSize:14, color:"#e8e6f0", marginBottom:6 }}>🤖 Descobrir novos nichos com IA</div>
+        <div style={{ fontSize:12, color:"#5a5a7a", marginBottom:14 }}>A IA analisa o mercado atual e sugere 6 nichos com maior potencial agora.</div>
+        <button onClick={gerarNichos} disabled={loadNichos}
+          style={{ background: loadNichos?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"1px solid #6366f140", borderRadius:10, padding:"10px 20px", color:loadNichos?"#5a5a7a":"#fff", fontSize:13, fontWeight:700, cursor:loadNichos?"wait":"pointer", fontFamily:"inherit", opacity:loadNichos?0.7:1 }}>
+          {loadNichos ? "⏳ Analisando mercado..." : "🤖 Gerar oportunidades"}
+        </button>
+        {aiNichos.length > 0 && (
+          <div style={{ marginTop:18, display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:10 }}>
+            {aiNichos.map((n,i) => (
+              <div key={i} style={{ background:"#0f0f1a", border:"1px solid #2a2a45", borderRadius:12, padding:"13px 15px" }}>
+                <div style={{ fontWeight:700, fontSize:13, color:"#a78bfa", marginBottom:5 }}>{n.nicho}</div>
+                <div style={{ fontSize:11, color:"#5a5a7a", marginBottom:4 }}>🔴 {n.dor}</div>
+                <div style={{ fontSize:11, color:"#5a5a7a", marginBottom:4 }}>💰 {n.oportunidade}</div>
+                <div style={{ fontSize:11, color:"#5a5a7a", marginBottom:10 }}>📌 {n.abordagem}</div>
+                <button onClick={() => onAdd(n.nicho)}
+                  style={{ background:"#a78bfa18", border:"1px solid #a78bfa30", borderRadius:7, padding:"5px 12px", color:"#a78bfa", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  + Adicionar ao pipeline
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -375,147 +441,94 @@ Máx 150 palavras. Seja cirúrgico, não genérico.` }],
 // ─────────────────────────────────────────────────────────────────────────────
 // CRIAR MENSAGEM
 // ─────────────────────────────────────────────────────────────────────────────
-function CriarMensagem({ selectedProspect, prospects, setProspects }) {
-  const [prospect,  setProspect]  = useState(selectedProspect || null);
-  const [abordagem, setAbordagem] = useState(ABORDAGENS[0]);
-  const [canal,     setCanal]     = useState("Instagram/DM");
-  const [extra,     setExtra]     = useState("");
-  const [msg,       setMsg]       = useState("");
+function CriarMensagem({ selectedProspect, prospects }) {
+  const [selId,     setSelId]     = useState(selectedProspect?.id || "");
+  const [abordagem, setAbordagem] = useState("roast");
+  const [mensagem,  setMensagem]  = useState("");
   const [loading,   setLoading]   = useState(false);
   const [copiado,   setCopiado]   = useState(false);
 
-  useEffect(() => { if (selectedProspect) setProspect(selectedProspect); }, [selectedProspect]);
+  const prospect = prospects.find(p => String(p.id) === String(selId));
+  const ab = ABORDAGENS.find(a => a.id === abordagem);
 
   async function gerar() {
-    setLoading(true); setMsg("");
-    const txt = await callClaude([{
-      role:"user",
-      content:`Escreva uma mensagem de prospecção para um designer freelancer brasileiro.
-
-PROSPECT:
-- Nome/Empresa: ${prospect?.name || "não informado"}
-- Segmento: ${prospect?.segment || "não informado"}
-- Canal: ${canal}
-${prospect?.referral ? `- Indicado por: ${prospect.referral}` : ""}
-${extra ? `- Contexto: ${extra}` : ""}
-
-ABORDAGEM: ${abordagem.nome}
-INSTRUÇÃO: ${abordagem.instrucao}
-
-REGRAS ABSOLUTAS:
-- NÃO comece com "Olá," ou "Oi," de forma robotizada
-- NÃO use "espero que esteja bem" ou "venho por meio desta"
-- NÃO escreva como vendedor — escreva como PESSOA
-- Seja específico ao segmento, não genérico
-- Máx 5 linhas${canal === "Email" ? " (inclua uma linha de assunto)" : ""}`
-    }], "Você é um designer freelancer brasileiro criativo que sabe prospectar de forma humana.");
-    setMsg(txt); setLoading(false);
+    if (!prospect) return;
+    setLoading(true); setMensagem("");
+    const contexto = [
+      prospect.name,
+      prospect.segment && `Segmento: ${prospect.segment}`,
+      prospect.dor_ia  && `Análise de dor: ${prospect.dor_ia}`,
+      prospect.notas_dor && `Observações minhas: ${prospect.notas_dor}`,
+      prospect.referral && `Indicado por: ${prospect.referral}`,
+    ].filter(Boolean).join("\n");
+    const txt = await callClaude(
+      [{ role:"user", content:`Escreva mensagem de prospecção para:\n${contexto}\n\nEstilo: ${ab.instrucao}\n\nRegras absolutas:\n- NÃO comece com "Olá", "Oi", "Ei"\n- NÃO use "espero que esteja bem"\n- NÃO seja genérico\n- Máx 5 linhas` }],
+      "Você é designer freelancer brasileiro escrevendo DMs de prospecção. Seja humano, criativo e específico. Nunca genérico.",
+      300
+    );
+    setMensagem(txt); setLoading(false);
   }
 
   function copiar() {
-    navigator.clipboard.writeText(msg);
+    navigator.clipboard.writeText(mensagem);
     setCopiado(true);
-    setTimeout(() => setCopiado(false), 2500);
+    setTimeout(() => setCopiado(false), 2000);
   }
 
-  const ativos = prospects.filter(p => !["fechado","perdido"].includes(p.stage));
-
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, maxWidth:960 }}>
-      {/* Coluna esquerda */}
-      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-        <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"16px 18px" }}>
-          <div style={{ fontSize:11, color:"#5a5a7a", fontWeight:700, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.08em" }}>Para qual prospect?</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:220, overflowY:"auto" }}>
-            {ativos.length === 0 && <div style={{ color:"#3a3a5a", fontSize:12, textAlign:"center", padding:"16px 0" }}>Adicione prospects no Pipeline primeiro</div>}
-            {ativos.map(p => (
-              <div key={p.id} onClick={() => setProspect(p)}
-                style={{ background:prospect?.id===p.id?"#6366f115":"#0f0f1a", border:`1px solid ${prospect?.id===p.id?"#6366f1":"#2a2a45"}`, borderRadius:9, padding:"9px 12px", cursor:"pointer" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <div>
-                    <div style={{ color:"#e8e6f0", fontWeight:600, fontSize:13 }}>{p.name}</div>
-                    <div style={{ color:"#5a5a7a", fontSize:11 }}>{p.segment || "sem segmento"}</div>
-                  </div>
-                  {prospect?.id===p.id && <span style={{ color:"#818cf8", fontWeight:800 }}>✓</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div>
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontSize:11, color:"#5a5a7a", fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Prospect</div>
+        <select value={String(selId)} onChange={e => setSelId(e.target.value)}
+          style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:9, padding:"10px 13px", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+          <option value="">Selecionar prospect...</option>
+          {prospects.map(p => <option key={p.id} value={String(p.id)}>{p.name} {p.segment?`— ${p.segment}`:""}</option>)}
+        </select>
+      </div>
 
-        <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"14px 18px" }}>
-          <div style={{ fontSize:11, color:"#5a5a7a", fontWeight:700, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.08em" }}>Canal</div>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {CANAIS.map(c => (
-              <button key={c} onClick={() => setCanal(c)}
-                style={{ background:canal===c?"#6366f120":"#1a1a2e", border:`1px solid ${canal===c?"#6366f1":"#2a2a45"}`, borderRadius:20, padding:"5px 12px", color:canal===c?"#818cf8":"#6a6a8a", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-                {CANAL_ICON[c]} {c}
-              </button>
-            ))}
-          </div>
+      {prospect && (prospect.dor_ia || prospect.notas_dor) && (
+        <div style={{ background:"#0f0f1a", border:"1px solid #6366f130", borderRadius:12, padding:"12px 16px", marginBottom:18 }}>
+          <div style={{ color:"#818cf8", fontWeight:700, fontSize:11, marginBottom:6 }}>🧠 Contexto salvo desse prospect:</div>
+          {prospect.dor_ia && <div style={{ color:"#8a8aaa", fontSize:12, lineHeight:1.6, marginBottom:prospect.notas_dor?8:0 }}>{prospect.dor_ia.substring(0,200)}{prospect.dor_ia.length>200?"...":""}</div>}
+          {prospect.notas_dor && <div style={{ color:"#f59e0b88", fontSize:12, lineHeight:1.6, fontStyle:"italic" }}>✍️ {prospect.notas_dor}</div>}
         </div>
+      )}
 
-        <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"14px 18px" }}>
-          <div style={{ fontSize:11, color:"#5a5a7a", fontWeight:700, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.08em" }}>Contexto extra (opcional)</div>
-          <textarea value={extra} onChange={e => setExtra(e.target.value)} rows={2}
-            placeholder="Ex: Vi que abriram filial nova, tinham post com logo torta..."
-            style={{ background:"#0f0f1a", border:"1px solid #2a2a45", borderRadius:9, padding:"9px 12px", color:"#e8e6f0", fontSize:12, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"none", lineHeight:1.6 }}/>
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontSize:11, color:"#5a5a7a", fontWeight:600, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.07em" }}>Abordagem</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:8 }}>
+          {ABORDAGENS.map(a => (
+            <button key={a.id} onClick={() => setAbordagem(a.id)}
+              style={{ background:abordagem===a.id?"#6366f130":"#13131f", border:`1px solid ${abordagem===a.id?"#6366f1":"#1e1e30"}`, borderRadius:10, padding:"11px 13px", textAlign:"left", cursor:"pointer", transition:"all .15s" }}>
+              <div style={{ fontSize:16, marginBottom:4 }}>{a.icon}</div>
+              <div style={{ color:abordagem===a.id?"#a78bfa":"#c4c4e0", fontWeight:700, fontSize:12 }}>{a.nome}</div>
+              <div style={{ color:"#5a5a7a", fontSize:11, marginTop:3, lineHeight:1.4 }}>{a.desc}</div>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Coluna direita */}
-      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-        <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"16px 18px" }}>
-          <div style={{ fontSize:11, color:"#5a5a7a", fontWeight:700, marginBottom:12, textTransform:"uppercase", letterSpacing:"0.08em" }}>Estilo de abordagem</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:7, maxHeight:340, overflowY:"auto" }}>
-            {ABORDAGENS.map(a => (
-              <div key={a.id} onClick={() => setAbordagem(a)}
-                style={{ background:abordagem.id===a.id?"#6366f112":"#0f0f1a", border:`1px solid ${abordagem.id===a.id?"#6366f1":"#1e1e30"}`, borderRadius:10, padding:"10px 13px", cursor:"pointer" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontSize:16 }}>{a.icon}</span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ color:abordagem.id===a.id?"#818cf8":"#e8e6f0", fontWeight:700, fontSize:13 }}>{a.nome}</div>
-                    <div style={{ color:"#4a4a6a", fontSize:11, marginTop:1 }}>{a.desc}</div>
-                  </div>
-                  {abordagem.id===a.id && <span style={{ color:"#818cf8", fontWeight:800 }}>✓</span>}
-                </div>
-              </div>
-            ))}
+      <button onClick={gerar} disabled={!prospect || loading}
+        style={{ background:(!prospect||loading)?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"1px solid #6366f140", borderRadius:10, padding:"12px 24px", color:(!prospect||loading)?"#5a5a7a":"#fff", fontSize:14, fontWeight:700, cursor:(!prospect||loading)?"not-allowed":"pointer", fontFamily:"inherit", width:"100%", marginBottom:16, opacity:loading?0.7:1 }}>
+        {loading ? "⏳ Gerando..." : "✨ Gerar mensagem"}
+      </button>
+
+      {mensagem && (
+        <div style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:14, padding:"18px 20px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <span style={{ color:"#818cf8", fontWeight:700, fontSize:13 }}>{ab?.icon} {ab?.nome}</span>
+            <button onClick={copiar}
+              style={{ background:copiado?"#10b98120":"#6366f120", border:`1px solid ${copiado?"#10b98140":"#6366f140"}`, borderRadius:8, padding:"6px 14px", color:copiado?"#10b981":"#818cf8", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {copiado ? "✓ Copiado!" : "📋 Copiar"}
+            </button>
           </div>
+          <div style={{ color:"#e8e6f0", fontSize:14, lineHeight:1.9, whiteSpace:"pre-wrap" }}>{mensagem}</div>
+          <button onClick={gerar}
+            style={{ background:"none", border:"1px solid #2a2a45", borderRadius:8, padding:"7px 14px", color:"#5a5a7a", fontSize:12, cursor:"pointer", fontFamily:"inherit", marginTop:12 }}>
+            🔄 Gerar outra versão
+          </button>
         </div>
-
-        <button onClick={gerar} disabled={!prospect || loading}
-          style={{ background:!prospect?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:`1px solid ${!prospect?"#2a2a45":"transparent"}`, borderRadius:12, padding:13, color:!prospect?"#4a4a6a":"#fff", fontSize:14, fontWeight:800, cursor:(!prospect||loading)?"not-allowed":"pointer", fontFamily:"'Syne',sans-serif", opacity:loading?0.7:1 }}>
-          {loading ? "✨ Gerando..." : !prospect ? "← Selecione um prospect" : "✨ Gerar mensagem"}
-        </button>
-
-        {msg && (
-          <div style={{ background:"#0f0f1a", border:"1px solid #6366f130", borderRadius:14, padding:"16px 18px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <div style={{ fontSize:11, color:"#818cf8", fontWeight:700 }}>{abordagem.icon} {abordagem.nome}</div>
-              <button onClick={gerar} title="Gerar outro" style={{ background:"none", border:"none", color:"#4a4a6a", cursor:"pointer", fontSize:16 }}>🔄</button>
-            </div>
-            <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={6}
-              style={{ background:"none", border:"none", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", resize:"vertical", lineHeight:1.75 }}/>
-            <div style={{ display:"flex", gap:8, marginTop:10, paddingTop:10, borderTop:"1px solid #1e1e30" }}>
-              <button onClick={copiar}
-                style={{ background:copiado?"#10b98120":"#6366f120", border:`1px solid ${copiado?"#10b98140":"#6366f140"}`, borderRadius:9, padding:"8px 16px", color:copiado?"#10b981":"#818cf8", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", flex:1 }}>
-                {copiado ? "✓ Copiado!" : "📋 Copiar"}
-              </button>
-              {prospect && (
-                <button
-                  onClick={() => {
-                    setProspects(prev => prev.map(p => p.id===prospect.id ? {...p, stage:"abordado", last_contact:new Date().toISOString()} : p));
-                    alert(`✅ ${prospect.name} marcado como "Abordado"!`);
-                  }}
-                  style={{ background:"#f59e0b20", border:"1px solid #f59e0b40", borderRadius:9, padding:"8px 16px", color:"#f59e0b", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", flex:1 }}>
-                  📩 Marcar enviado
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -524,79 +537,81 @@ REGRAS ABSOLUTAS:
 // SEQUÊNCIA DE 3
 // ─────────────────────────────────────────────────────────────────────────────
 function Sequencia({ prospects }) {
-  const [prospect,  setProspect]  = useState(null);
-  const [sequencia, setSequencia] = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [copiados,  setCopiados]  = useState({});
+  const [selId,    setSelId]    = useState("");
+  const [msgs,     setMsgs]     = useState([]);
+  const [loading,  setLoading]  = useState(false);
+  const [copiado,  setCopiado]  = useState(null);
+
+  const prospect = prospects.find(p => String(p.id) === String(selId));
 
   async function gerar() {
     if (!prospect) return;
-    setLoading(true); setSequencia(null);
-    const txt = await callClaude([{
-      role:"user",
-      content:`Sequência de 3 mensagens de prospecção para designer freelancer abordar ${prospect.name} (${prospect.segment || "negócio local"}) pelo canal ${prospect.canal}.
-
-Cada mensagem com abordagem DIFERENTE. Tom evolui: suave → mais direto → encerramento elegante.
-NÃO pareça automático — cada mensagem deve soar como pessoa real.
-
-Responda APENAS JSON:
-[
-  {"numero":1,"intervalo":"Dia 1","tom":"nome do tom","mensagem":"texto","objetivo":"o que você quer que aconteça"},
-  {"numero":2,"intervalo":"3-4 dias depois","tom":"nome do tom","mensagem":"texto","objetivo":"objetivo"},
-  {"numero":3,"intervalo":"7-10 dias depois","tom":"nome do tom","mensagem":"texto","objetivo":"objetivo"}
-]`
-    }], "Responda apenas JSON válido. Sem markdown. Seja criativo e humano.", 1500);
-    try { setSequencia(JSON.parse(txt.replace(/```json|```/g,"").trim())); }
-    catch { setSequencia([{ numero:1, intervalo:"Erro", tom:"", mensagem:txt, objetivo:"Tente novamente" }]); }
+    setLoading(true); setMsgs([]);
+    const contexto = [
+      prospect.name,
+      prospect.segment && `Segmento: ${prospect.segment}`,
+      prospect.dor_ia  && `Dor mapeada: ${prospect.dor_ia}`,
+      prospect.notas_dor && `Minhas observações: ${prospect.notas_dor}`,
+    ].filter(Boolean).join("\n");
+    const txt = await callClaude(
+      [{ role:"user", content:`Crie sequência de 3 mensagens de prospecção para:\n${contexto}\n\nJSON somente:\n[{"dia":"Dia 1","tom":"direto","msg":"..."},{"dia":"Dia 3-4","tom":"valor","msg":"..."},{"dia":"Dia 7-10","tom":"encerramento","msg":"..."}]\n\nRegras: cada mensagem max 4 linhas, estilo diferente, sem começar com Oi/Olá, sem "espero que esteja bem"` }],
+      "Responda apenas JSON puro. Sem markdown.",
+      600
+    );
+    try { setMsgs(JSON.parse(txt.replace(/```json|```/g,"").trim())); }
+    catch { setMsgs([{dia:"Erro",tom:"",msg:"Tente novamente"}]); }
     setLoading(false);
   }
 
-  const cores = ["#6366f1","#f59e0b","#10b981"];
-  const ativos = prospects.filter(p => !["fechado","perdido"].includes(p.stage));
+  function copiar(txt, i) {
+    navigator.clipboard.writeText(txt);
+    setCopiado(i);
+    setTimeout(() => setCopiado(null), 2000);
+  }
 
   return (
-    <div style={{ maxWidth:720 }}>
-      <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:14, padding:"18px 20px", marginBottom:18 }}>
-        <div style={{ fontSize:13, color:"#6a6a8a", marginBottom:14 }}>
-          Planeja os <strong style={{ color:"#818cf8" }}>3 primeiros contatos</strong> de uma vez — tons diferentes, timing estratégico. Só enviar no momento certo.
-        </div>
-        <div style={{ fontSize:11, color:"#5a5a7a", fontWeight:700, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.08em" }}>Gerar sequência para:</div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
-          {ativos.length === 0 && <div style={{ color:"#3a3a5a", fontSize:12 }}>Adicione prospects no Pipeline primeiro</div>}
-          {ativos.map(p => (
-            <button key={p.id} onClick={() => setProspect(p)}
-              style={{ background:prospect?.id===p.id?"#6366f120":"#1a1a2e", border:`1px solid ${prospect?.id===p.id?"#6366f1":"#2a2a45"}`, borderRadius:20, padding:"6px 14px", color:prospect?.id===p.id?"#818cf8":"#6a6a8a", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>
-              {CANAL_ICON[p.canal]} {p.name}
-            </button>
-          ))}
-        </div>
-        <button onClick={gerar} disabled={!prospect || loading}
-          style={{ background:!prospect?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:`1px solid ${!prospect?"#2a2a45":"transparent"}`, borderRadius:10, padding:"11px 22px", color:!prospect?"#4a4a6a":"#fff", fontSize:13, fontWeight:700, cursor:(!prospect||loading)?"not-allowed":"pointer", fontFamily:"inherit", opacity:loading?0.7:1 }}>
-          {loading ? "🧠 Montando sequência..." : !prospect ? "Selecione um prospect acima" : "🎯 Gerar sequência de 3"}
-        </button>
+    <div>
+      <div style={{ background:"#13131f", border:"1px solid #1e1e30", borderRadius:12, padding:"14px 18px", marginBottom:20 }}>
+        <div style={{ color:"#e8e6f0", fontWeight:700, fontSize:14, marginBottom:4 }}>📅 Estratégia de 3 mensagens</div>
+        <div style={{ color:"#5a5a7a", fontSize:12 }}>Dia 1 → Dia 3-4 → Dia 7-10. Cada uma com tom diferente. Se não responder após a 3ª, deixa quieto por 30 dias.</div>
       </div>
 
-      {sequencia && (
+      <div style={{ marginBottom:16 }}>
+        <select value={String(selId)} onChange={e => setSelId(e.target.value)}
+          style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:9, padding:"10px 13px", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+          <option value="">Selecionar prospect...</option>
+          {prospects.map(p => <option key={p.id} value={String(p.id)}>{p.name} {p.segment?`— ${p.segment}`:""}</option>)}
+        </select>
+      </div>
+
+      {prospect && (prospect.dor_ia || prospect.notas_dor) && (
+        <div style={{ background:"#0f0f1a", border:"1px solid #6366f130", borderRadius:12, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ color:"#818cf8", fontWeight:700, fontSize:11, marginBottom:4 }}>🧠 Contexto que será usado:</div>
+          {prospect.dor_ia && <div style={{ color:"#8a8aaa", fontSize:12, lineHeight:1.5 }}>{prospect.dor_ia.substring(0,150)}...</div>}
+          {prospect.notas_dor && <div style={{ color:"#f59e0b88", fontSize:12, marginTop:4, fontStyle:"italic" }}>✍️ {prospect.notas_dor}</div>}
+        </div>
+      )}
+
+      <button onClick={gerar} disabled={!prospect || loading}
+        style={{ background:(!prospect||loading)?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"1px solid #6366f140", borderRadius:10, padding:"12px 24px", color:(!prospect||loading)?"#5a5a7a":"#fff", fontSize:14, fontWeight:700, cursor:(!prospect||loading)?"not-allowed":"pointer", fontFamily:"inherit", width:"100%", marginBottom:20, opacity:loading?0.7:1 }}>
+        {loading ? "⏳ Gerando sequência..." : "📅 Gerar sequência de 3"}
+      </button>
+
+      {msgs.length > 0 && (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          {sequencia.map((s, i) => (
-            <div key={i} style={{ background:"#13131f", border:`1px solid ${cores[i]}30`, borderRadius:14, padding:"18px 20px", borderLeft:`3px solid ${cores[i]}` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                <div>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-                    <span style={{ background:`${cores[i]}25`, color:cores[i], fontWeight:800, fontSize:13, padding:"3px 12px", borderRadius:20 }}>Mensagem {s.numero}</span>
-                    <span style={{ color:"#4a4a6a", fontSize:11 }}>📅 {s.intervalo}</span>
-                  </div>
-                  <div style={{ color:"#6a6a8a", fontSize:11 }}>Tom: <span style={{ color:cores[i] }}>{s.tom}</span> · {s.objetivo}</div>
+          {msgs.map((m, i) => (
+            <div key={i} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:14, padding:"16px 18px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <span style={{ background:"#6366f130", color:"#818cf8", fontWeight:800, fontSize:12, padding:"3px 10px", borderRadius:20 }}>{m.dia}</span>
+                  <span style={{ color:"#5a5a7a", fontSize:12 }}>{m.tom}</span>
                 </div>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(s.mensagem); setCopiados(p=>({...p,[i]:true})); setTimeout(()=>setCopiados(p=>({...p,[i]:false})),2000); }}
-                  style={{ background:copiados[i]?"#10b98120":"#1a1a2e", border:`1px solid ${copiados[i]?"#10b98140":"#2a2a45"}`, borderRadius:8, padding:"6px 12px", color:copiados[i]?"#10b981":"#6a6a8a", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                  {copiados[i] ? "✓ Copiado" : "📋 Copiar"}
+                <button onClick={() => copiar(m.msg, i)}
+                  style={{ background:copiado===i?"#10b98120":"#1a1a2e", border:`1px solid ${copiado===i?"#10b98140":"#2a2a45"}`, borderRadius:8, padding:"5px 12px", color:copiado===i?"#10b981":"#5a5a7a", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {copiado===i ? "✓ Copiado!" : "📋 Copiar"}
                 </button>
               </div>
-              <div style={{ background:"#0f0f1a", borderRadius:10, padding:"12px 14px", color:"#e8e6f0", fontSize:13, lineHeight:1.75, whiteSpace:"pre-wrap" }}>
-                {s.mensagem}
-              </div>
+              <div style={{ color:"#e8e6f0", fontSize:13, lineHeight:1.9, whiteSpace:"pre-wrap" }}>{m.msg}</div>
             </div>
           ))}
           <div style={{ background:"#0f0f1a", border:"1px solid #1e1e30", borderRadius:12, padding:"12px 16px", color:"#5a5a7a", fontSize:12, textAlign:"center" }}>
@@ -617,10 +632,9 @@ export function Prospeccao() {
   });
   const [tab,         setTab]         = useState("pipeline");
   const [msgProspect, setMsgProspect] = useState(null);
-  const [syncStatus,  setSyncStatus]  = useState("idle"); // idle | loading | ok | error
+  const [syncStatus,  setSyncStatus]  = useState("idle");
   const loaded = useRef(false);
 
-  // Carrega do Supabase na abertura
   useEffect(() => {
     if (!dbReady) { loaded.current = true; return; }
     (async () => {
@@ -635,7 +649,6 @@ export function Prospeccao() {
     })();
   }, []);
 
-  // Salva no Supabase + localStorage sempre que mudar
   async function setProspects(updater) {
     const novo = typeof updater === "function" ? updater(prospects) : updater;
     setLocal(novo);
@@ -644,7 +657,6 @@ export function Prospeccao() {
     setSyncStatus("loading");
     try {
       await supabase.from("prospects").upsert(novo);
-      // Remove os que foram deletados
       if (novo.length > 0) {
         const ids = novo.map(p => p.id);
         await supabase.from("prospects").delete().not("id","in",`(${ids.join(",")})`);
@@ -661,6 +673,7 @@ export function Prospeccao() {
     setProspects(prev => [...prev, {
       id: Date.now(), name:`Prospect — ${segment}`, segment,
       canal:"Instagram/DM", stage:"identificado",
+      dor_ia: "", notas_dor: "",
       last_contact: null, created_at: new Date().toISOString(),
     }]);
     setTab("pipeline");
@@ -671,7 +684,7 @@ export function Prospeccao() {
     setTab("mensagem");
   }
 
-  const urgentes  = prospects.filter(p => !["fechado","perdido"].includes(p.stage) && diasAtras(p.last_contact) >= 5).length;
+  const urgentes = prospects.filter(p => !["fechado","perdido"].includes(p.stage) && diasAtras(p.last_contact) >= 5).length;
   const stats = {
     total:    prospects.length,
     contato:  prospects.filter(p => ["abordado","respondeu"].includes(p.stage)).length,
@@ -680,7 +693,7 @@ export function Prospeccao() {
   };
 
   const TABS = [
-    { id:"pipeline",  label:"⚡ Pipeline",        badge: urgentes > 0 ? urgentes : null },
+    { id:"pipeline",  label:"⚡ Pipeline",      badge: urgentes > 0 ? urgentes : null },
     { id:"nichos",    label:"🎯 Quem Abordar" },
     { id:"mensagem",  label:"✍️ Criar Mensagem" },
     { id:"sequencia", label:"📅 Sequência de 3" },
@@ -691,7 +704,6 @@ export function Prospeccao() {
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:1100 }}>
-      {/* Header */}
       <div style={{ marginBottom:24 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:4 }}>
           <h1 style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, margin:0 }}>
@@ -704,10 +716,9 @@ export function Prospeccao() {
             </div>
           )}
         </div>
-        <p style={{ color:"#5a5a7a", margin:0, fontSize:13 }}>Pipeline de novos clientes · abordagens criativas · follow-up inteligente</p>
+        <p style={{ color:"#5a5a7a", margin:0, fontSize:13 }}>Pipeline de novos clientes · análise de dor por prospect · abordagens criativas</p>
       </div>
 
-      {/* Stats */}
       <div style={{ display:"flex", gap:12, marginBottom:24, flexWrap:"wrap" }}>
         {[
           { label:"Prospects",    value:stats.total,    color:"#818cf8" },
@@ -723,7 +734,6 @@ export function Prospeccao() {
         ))}
       </div>
 
-      {/* Tabs */}
       <div style={{ display:"flex", gap:2, background:"#0f0f1a", borderRadius:12, padding:4, border:"1px solid #1e1e30", marginBottom:24, width:"fit-content", flexWrap:"wrap" }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -734,7 +744,6 @@ export function Prospeccao() {
         ))}
       </div>
 
-      {/* Conteúdo */}
       {tab==="pipeline"  && <Pipeline     prospects={prospects} setProspects={setProspects} onMensagem={handleMensagem}/>}
       {tab==="nichos"    && <QuemAbordar  onAdd={handleAddNiche}/>}
       {tab==="mensagem"  && <CriarMensagem selectedProspect={msgProspect} prospects={prospects} setProspects={setProspects}/>}
@@ -746,7 +755,7 @@ export function Prospeccao() {
             🎉 {stats.proposta} prospect{stats.proposta>1?"s":""} com proposta enviada!
           </div>
           <div style={{ color:"#5a5a7a", fontSize:12 }}>
-            Quando fechar, mova para "Fechado" e depois adicione como Lead no CRM.
+            Quando fechar, mova para "Fechado" e adicione como Lead no CRM.
           </div>
         </div>
       )}
