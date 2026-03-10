@@ -1655,13 +1655,13 @@ function FormularioPedido({ leads }) {
 }
 
 function AprovarPage() {
+  const [aprovado, setAprovado] = useState(false);
+  const [obs, setObs] = useState("");
   const params = new URLSearchParams(window.location.search);
   const data = params.get("pedido");
   if (!data) return <div style={{ padding:40, color:C.muted }}>Nenhum pedido encontrado nesta URL.</div>;
   let pedido;
-  try { pedido = JSON.parse(atob(data)); } catch { return <div style={{ padding:40, color:C.red }}>Erro ao decodificar pedido.</div>; }
-  const [aprovado, setAprovado] = useState(false);
-  const [obs, setObs] = useState("");
+  try { pedido = JSON.parse(atob(data)); } catch(e) { return <div style={{ padding:40, color:C.red }}>Erro ao decodificar pedido.</div>; }
   if (aprovado) return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ textAlign:"center" }}>
@@ -1784,12 +1784,13 @@ export default function App() {
   const [demandas, setDemandas] = useLocalStorage("dh_demandas", initDemandas);
   const [notes, setNotes] = useLocalStorage("dh_notes", []);
   const [despesas, setDespesas] = useLocalStorage("dh_despesas", []);
-  const [view, setView] = useState("dashboard");
+  const [view, setView] = useState(() => localStorage.getItem("dh_view") || "dashboard");
   const [sideOpen, setSideOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
 
   useEffect(() => { C = THEMES[theme]; document.documentElement.style.setProperty("--bg", THEMES[theme].bg); document.body.style.background=THEMES[theme].bg; }, [theme]);
+  useEffect(() => { localStorage.setItem("dh_view", view); }, [view]);
 
   const timer = useTimer((date, secs) => {
     setTimerHistory(h => {
