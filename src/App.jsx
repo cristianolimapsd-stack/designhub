@@ -1334,9 +1334,15 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
   const move = (id, status) => {
     const demanda = demandasRef.current.find(d=>d.id===id);
     setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
-    if (demanda?.solicitacao_id) {
-      supabase.from("solicitacoes").update({ status }).eq("id", Number(demanda.solicitacao_id));
-    }
+    // Sincroniza com Supabase — tenta via solicitacao_id ou via kanban map
+    const sid = demanda?.solicitacao_id
+      ? Number(demanda.solicitacao_id)
+      : (() => {
+          const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+          const entry = Object.entries(kanbanMap).find(([_,did])=>String(did)===String(id));
+          return entry ? Number(entry[0]) : null;
+        })();
+    if (sid) supabase.from("solicitacoes").update({ status }).eq("id", sid);
   };
   const nomeCliente = (id) => clientes.find(c=>String(c.id)===String(id))?.name||"";
   const handleDragStart = (e, id) => { setDragId(id); e.dataTransfer.effectAllowed="move"; };
@@ -1913,29 +1919,19 @@ function PortalCliente({ leads, setDemandas }) {
     try { return JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}"); } catch { return {}; }
   });
 
-  // Lê demandas do localStorage e sincroniza status das solicitações vinculadas
-  function syncKanbanToSupabase() {
-    const demandas = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
-    const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}");
-    let count = 0;
-    Object.entries(kanbanMap).forEach(([solicId, demandaId]) => {
-      const demanda = demandas.find(d=>String(d.id)===String(demandaId));
-      if (demanda) {
-        supabase.from("solicitacoes").update({ status: demanda.status }).eq("id", Number(solicId));
-        count++;
-      }
-    });
-    alert(`✅ ${count} solicitação(ões) sincronizada(s) com o Kanban.`);
-    if (selCli) {
-      supabase.from("solicitacoes").select("*").eq("cliente_id", selCli).order("created_at", { ascending:false })
-        .then(({ data }) => setSolic(data || []));
-    }
-  }
+  // Sincronização automática via move() no Kanban — não precisa de botão manual
   const cliente = clientes.find(c=>String(c.id)===selCli);
 
   useEffect(() => {
     if (!selCli) return;
     setLoading(true);
+    // Ao carregar, sincroniza status das solicitações com o kanban local
+    const demandas = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
+    const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}");
+    Object.entries(kanbanMap).forEach(([solicId, demandaId]) => {
+      const dem = demandas.find(d=>String(d.id)===String(demandaId));
+      if (dem) supabase.from("solicitacoes").update({ status: dem.status }).eq("id", Number(solicId));
+    });
     supabase.from("solicitacoes").select("*").eq("cliente_id", selCli).order("created_at", { ascending:false })
       .then(({ data }) => { setSolic(data || []); setLoading(false); });
   }, [selCli]);
@@ -1993,17 +1989,8 @@ function PortalCliente({ leads, setDemandas }) {
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:820 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6, flexWrap:"wrap", gap:10 }}>
-        <div>
-          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 4px" }}>📬 Solicitações dos Clientes</h1>
-          <p style={{ color:C.muted, fontSize:13, margin:0 }}>Receba, gerencie e mande para o Kanban. O status do Kanban aparece no portal do cliente.</p>
-        </div>
-        <button onClick={syncKanbanToSupabase}
-          style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"8px 14px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", marginTop:4 }}>
-          🔄 Sincronizar status com Kanban
-        </button>
-      </div>
-      <div style={{ marginBottom:22 }}/>
+      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>📬 Solicitações dos Clientes</h1>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>Mova no Kanban → status atualiza aqui e no portal do cliente automaticamente.</p>
 
       <Field label="Cliente" value={selCli} onChange={setSelCli} options={[{value:"",label:"Selecionar cliente..."},...clientes.map(c=>({value:String(c.id),label:c.name}))]}/>
 
