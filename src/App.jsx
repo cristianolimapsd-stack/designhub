@@ -1208,6 +1208,9 @@ function Notes({ notes, setNotes }) {
 }
 
 function Kanban({ demandas, setDemandas, leads }) {
+  // ref sempre atualizado para move/del terem acesso ao estado mais recente
+  const demandasRef = React.useRef(demandas);
+  React.useEffect(() => { demandasRef.current = demandas; }, [demandas]);
   const today = new Date().toISOString().split("T")[0];
   const [modal, setModal] = useState(false);
   const [dragId, setDragId] = useState(null);
@@ -1229,22 +1232,20 @@ function Kanban({ demandas, setDemandas, leads }) {
   };
   const del = id => {
     if (!window.confirm("Excluir demanda?")) return;
-    const demanda = demandas.find(d=>d.id===id);
+    const demanda = demandasRef.current.find(d=>d.id===id);
     setDemandas(ds=>ds.filter(d=>d.id!==id));
-    // Se veio de uma solicitação, apaga lá também
     if (demanda?.solicitacao_id) {
-      supabase.from("solicitacoes").delete().eq("id", demanda.solicitacao_id);
+      supabase.from("solicitacoes").delete().eq("id", Number(demanda.solicitacao_id));
       const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
-      delete kanbanMap[demanda.solicitacao_id];
+      delete kanbanMap[String(demanda.solicitacao_id)];
       localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
     }
   };
   const move = (id, status) => {
+    const demanda = demandasRef.current.find(d=>d.id===id);
     setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
-    // Usa kanban status direto no supabase — portal espelha exatamente
-    const demanda = demandas.find(d=>d.id===id);
     if (demanda?.solicitacao_id) {
-      supabase.from("solicitacoes").update({ status }).eq("id", String(demanda.solicitacao_id));
+      supabase.from("solicitacoes").update({ status }).eq("id", Number(demanda.solicitacao_id));
     }
   };
   const nomeCliente = (id) => clientes.find(c=>String(c.id)===String(id))?.name||"";
@@ -1511,11 +1512,21 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
     setFormDem({titulo:"",descricao:"",prazo:"",valor:"",status:"agenda",tag:""});
     setEditDemId(null);
   };
-  const delDem = id => { if(!window.confirm("Excluir demanda?")) return; setDemandas(ds=>ds.filter(d=>d.id!==id)); };
-  const moveDem = (id, status) => {
-    setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
+  const delDem = id => {
+    if(!window.confirm("Excluir demanda?")) return;
     const dem = demandas.find(d=>d.id===id);
-    if (dem?.solicitacao_id) supabase.from("solicitacoes").update({ status }).eq("id", String(dem.solicitacao_id));
+    setDemandas(ds=>ds.filter(d=>d.id!==id));
+    if (dem?.solicitacao_id) {
+      supabase.from("solicitacoes").delete().eq("id", Number(dem.solicitacao_id));
+      const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+      delete kanbanMap[String(dem.solicitacao_id)];
+      localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+    }
+  };
+  const moveDem = (id, status) => {
+    const dem = demandas.find(d=>d.id===id);
+    setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
+    if (dem?.solicitacao_id) supabase.from("solicitacoes").update({ status }).eq("id", Number(dem.solicitacao_id));
   };
   const openEditDem = d => { setFormDem({titulo:d.titulo,descricao:d.descricao||"",prazo:d.prazo||"",valor:String(d.valor||""),status:d.status,tag:d.tag||""}); setEditDemId(d.id); setModalDem(true); };
   return (
@@ -1811,6 +1822,25 @@ function PortalCliente({ leads, setDemandas }) {
   const [kanbanIds, setKanbanIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}"); } catch { return {}; }
   });
+
+  // Lê demandas do localStorage e sincroniza status das solicitações vinculadas
+  function syncKanbanToSupabase() {
+    const demandas = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
+    const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}");
+    let count = 0;
+    Object.entries(kanbanMap).forEach(([solicId, demandaId]) => {
+      const demanda = demandas.find(d=>String(d.id)===String(demandaId));
+      if (demanda) {
+        supabase.from("solicitacoes").update({ status: demanda.status }).eq("id", Number(solicId));
+        count++;
+      }
+    });
+    alert(`✅ ${count} solicitação(ões) sincronizada(s) com o Kanban.`);
+    if (selCli) {
+      supabase.from("solicitacoes").select("*").eq("cliente_id", selCli).order("created_at", { ascending:false })
+        .then(({ data }) => setSolic(data || []));
+    }
+  }
   const cliente = clientes.find(c=>String(c.id)===selCli);
 
   useEffect(() => {
@@ -1873,8 +1903,17 @@ function PortalCliente({ leads, setDemandas }) {
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:820 }}>
-      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>📬 Solicitações dos Clientes</h1>
-      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>Receba, gerencie e mande para o Kanban. Quando estiver em aprovação, o cliente vê no portal.</p>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6, flexWrap:"wrap", gap:10 }}>
+        <div>
+          <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 4px" }}>📬 Solicitações dos Clientes</h1>
+          <p style={{ color:C.muted, fontSize:13, margin:0 }}>Receba, gerencie e mande para o Kanban. O status do Kanban aparece no portal do cliente.</p>
+        </div>
+        <button onClick={syncKanbanToSupabase}
+          style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"8px 14px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", marginTop:4 }}>
+          🔄 Sincronizar status com Kanban
+        </button>
+      </div>
+      <div style={{ marginBottom:22 }}/>
 
       <Field label="Cliente" value={selCli} onChange={setSelCli} options={[{value:"",label:"Selecionar cliente..."},...clientes.map(c=>({value:String(c.id),label:c.name}))]}/>
 
