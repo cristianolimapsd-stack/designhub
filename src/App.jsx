@@ -258,7 +258,8 @@ function MonthPicker({ value, onChange, label }) {
   );
 }
 
-function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[], setFocusMode }) {
+function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas: _dashDemandas=[], setFocusMode }) {
+  const demandas = Array.isArray(_dashDemandas) ? _dashDemandas : [];
   const today = new Date().toISOString().split("T")[0];
   const totalV = leads.filter(l=>l.status==="fechado").reduce((a,b)=>a+b.value,0);
   const pipeline = leads.filter(l=>!["fechado","perdido"].includes(l.status)).reduce((a,b)=>a+b.value,0);
@@ -1221,8 +1222,9 @@ function Notes({ notes, setNotes }) {
   );
 }
 
-function Kanban({ demandas, setDemandas, leads }) {
-  // ref sempre atualizado para move/del terem acesso ao estado mais recente
+function Kanban({ demandas: _demandas, setDemandas, leads }) {
+  // Garante que demandas é sempre um array válido
+  const demandas = Array.isArray(_demandas) ? _demandas.filter(d=>d&&typeof d==="object") : [];
   const demandasRef = useRef(demandas);
   useEffect(() => { demandasRef.current = demandas; }, [demandas]);
   const today = new Date().toISOString().split("T")[0];
@@ -1233,8 +1235,15 @@ function Kanban({ demandas, setDemandas, leads }) {
   const [editId, setEditId] = useState(null);
   const [filterCli, setFilterCli] = useState("");
   const [search, setSearch] = useState("");
-  const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
-  const filtered = demandas.filter(d=>(filterCli===""||String(d.cliente_id)===filterCli)&&(d.titulo?.toLowerCase().includes(search.toLowerCase())||d.tag?.toLowerCase().includes(search.toLowerCase())));
+  const clientes = Array.isArray(leads) ? leads.filter(l=>l&&l.categoria==="cliente_fixo") : [];
+  const filtered = demandas.filter(d=>{
+    try {
+      const matchCli = filterCli==="" || String(d.cliente_id)===filterCli;
+      const q = search.toLowerCase();
+      const matchQ = !q || (d.titulo||"").toLowerCase().includes(q) || (d.tag||"").toLowerCase().includes(q);
+      return matchCli && matchQ;
+    } catch { return false; }
+  });
   const openEdit = d => { setForm({titulo:d.titulo,descricao:d.descricao||"",prazo:d.prazo||"",valor:String(d.valor||""),status:d.status,cliente_id:String(d.cliente_id||""),tag:d.tag||""}); setEditId(d.id); setModal(true); };
   const openNew = (status="agenda") => { setForm({titulo:"",descricao:"",prazo:"",valor:"",status,cliente_id:"",tag:""}); setEditId(null); setModal(true); };
   const save = () => {
@@ -2386,6 +2395,29 @@ function SolicitarFormInline({ clienteId, clienteNome, onEnviado }) {
   );
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError:false, error:null }; }
+  static getDerivedStateFromError(e) { return { hasError:true, error:e }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight:"100vh", background:"#080810", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"DM Sans,sans-serif", padding:40 }}>
+          <div style={{ textAlign:"center", maxWidth:480 }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>⚠️</div>
+            <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:20, marginBottom:8 }}>Algo deu errado</div>
+            <div style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{this.state.error?.message || "Erro desconhecido"}</div>
+            <button onClick={()=>{ localStorage.clear(); window.location.reload(); }}
+              style={{ background:"linear-gradient(135deg,#7c3aed,#a78bfa)", border:"none", borderRadius:10, padding:"12px 24px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+              🗑 Limpar cache e reiniciar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("pedido"))    return <AprovarPage/>;
@@ -2440,10 +2472,11 @@ export default function App() {
 
   C = THEMES[theme];
 
-  if (!loggedIn) return <LoginScreen onLogin={u=>{setLoggedIn(true);if(u)setUserName(u.charAt(0).toUpperCase()+u.slice(1));}} />;
+  if (!loggedIn) return <ErrorBoundary><LoginScreen onLogin={u=>{setLoggedIn(true);if(u)setUserName(u.charAt(0).toUpperCase()+u.slice(1));}} /></ErrorBoundary>;
   if (focusMode) return <FocusMode timer={timer} onClose={()=>setFocusMode(false)}/>;
 
   return (
+    <ErrorBoundary>
     <div style={{ display:"flex", height:"100vh", overflow:"hidden", background:C.bg, fontFamily:"'DM Sans',sans-serif", color:C.text }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -2528,5 +2561,6 @@ export default function App() {
 
       <SettingsModal open={settingsOpen} onClose={()=>setSettingsOpen(false)} theme={theme} setTheme={setTheme} userName={userName} setUserName={setUserName} userRole={userRole} setUserRole={setUserRole} userAvatar={userAvatar} setUserAvatar={setUserAvatar}/>
     </div>
+    </ErrorBoundary>
   );
 }
