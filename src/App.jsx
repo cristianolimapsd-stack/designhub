@@ -117,63 +117,71 @@ function Ico({ n, s=16, c="currentColor" }) {
 
 // ─── Timer Hook ────────────────────────────────────────────────────────────────
 function useTimer(onSave) {
-  // Persiste estado no localStorage para sobreviver recarregamentos
   const todayKey = new Date().toISOString().split("T")[0];
-  const stored = (() => { try { return JSON.parse(localStorage.getItem("dh_timer_state")||"{}"); } catch { return {}; } })();
-  // Se o state salvo é de hoje, restaura; senão começa do zero
-  const initSecs   = stored.date === todayKey ? (stored.seconds || 0) : 0;
-  const initRun    = stored.date === todayKey ? (stored.running || false) : false;
-  const initStart  = stored.date === todayKey ? (stored.startedAt || null) : null;
 
-  const [seconds,  setSeconds]  = useState(() => {
-    // Se estava rodando, calcula o tempo que passou desde que salvou
+  // Lê estado salvo — usa baseSeconds (valor quando run começou) + startedAt para calcular atual
+  const stored = (() => { try { return JSON.parse(localStorage.getItem("dh_timer_state")||"{}"); } catch { return {}; } })();
+  const isToday   = stored.date === todayKey;
+  const initBase  = isToday ? (stored.baseSeconds || 0) : 0; // segundos ANTES do run atual
+  const initRun   = isToday ? (stored.running || false) : false;
+  const initStart = isToday ? (stored.startedAt || null) : null;
+
+  // Calcula os segundos iniciais corretamente: base + elapsed desde que o run começou
+  const calcInitSecs = () => {
     if (initRun && initStart) {
-      const elapsed = Math.floor((Date.now() - initStart) / 1000);
-      return initSecs + elapsed;
+      return initBase + Math.floor((Date.now() - initStart) / 1000);
     }
-    return initSecs;
-  });
+    return initBase;
+  };
+
+  const [seconds,  setSeconds]  = useState(calcInitSecs);
   const [running,  setRunning]  = useState(initRun);
   const [goal]                  = useState(8 * 3600);
-  const intervalRef = useRef(null);
-  const secondsRef  = useRef(seconds);
+  const intervalRef  = useRef(null);
+  const secondsRef   = useRef(seconds);
+  const baseRef      = useRef(initBase);   // segundos acumulados antes do run atual
   const startedAtRef = useRef(initRun ? (initStart || Date.now()) : null);
 
-  // mantém secondsRef sempre atualizado
   useEffect(() => { secondsRef.current = seconds; }, [seconds]);
 
-  // Persiste estado a cada tick
-  useEffect(() => {
+  // Salva estado — sempre usa baseRef (não o valor corrente) para evitar dupla-contagem no reload
+  const persist = (isRunning) => {
     try {
       localStorage.setItem("dh_timer_state", JSON.stringify({
         date: todayKey,
-        seconds: secondsRef.current,
-        running,
-        startedAt: running ? (startedAtRef.current || Date.now()) : null,
+        baseSeconds: baseRef.current,          // ← valor "congelado" quando pausou ou iniciou
+        running: isRunning,
+        startedAt: isRunning ? startedAtRef.current : null,
       }));
     } catch {}
-  }, [seconds, running]);
+  };
 
   useEffect(() => {
     if (running) {
       if (!startedAtRef.current) startedAtRef.current = Date.now();
-      // Usa timestamp real para evitar drift do setInterval
-      const startSecs = secondsRef.current;
-      const startTime = Date.now();
+      // Congela a base no momento que o run começa
+      baseRef.current = secondsRef.current;
+      startedAtRef.current = Date.now();
+      persist(true);
+      // Usa timestamp real — sem drift
+      const base = baseRef.current;
+      const t0   = startedAtRef.current;
       intervalRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        setSeconds(startSecs + elapsed);
-      }, 500); // 500ms para ser mais responsivo
+        setSeconds(base + Math.floor((Date.now() - t0) / 1000));
+      }, 500);
     } else {
       clearInterval(intervalRef.current);
+      // Ao pausar, congela a base no valor atual
+      baseRef.current = secondsRef.current;
       startedAtRef.current = null;
+      persist(false);
     }
     return () => clearInterval(intervalRef.current);
   }, [running]);
 
   const today = () => new Date().toISOString().split("T")[0];
 
-  const fmt = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  const fmt  = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   const fmtH = s => {
     const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
     if (h === 0) return `${m}min`;
@@ -189,6 +197,7 @@ function useTimer(onSave) {
     if (secs > 0) onSave(today(), secs);
     setSeconds(0);
     secondsRef.current = 0;
+    baseRef.current = 0;
     startedAtRef.current = null;
     try { localStorage.removeItem("dh_timer_state"); } catch {}
   };
