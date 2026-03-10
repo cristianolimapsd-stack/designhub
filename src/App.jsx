@@ -1344,7 +1344,10 @@ function Kanban({ demandas: _demandas, setDemandas, leads }) {
           const entry = Object.entries(kanbanMap).find(([_,did])=>String(did)===String(id));
           return entry ? Number(entry[0]) : null;
         })();
-    if (sid) supabase.from("solicitacoes").update({ status }).eq("id", sid);
+    if (sid) {
+      supabase.from("solicitacoes").update({ status }).eq("id", sid);
+      window.dispatchEvent(new CustomEvent("solic_changed"));
+    }
   };
   const nomeCliente = (id) => clientes.find(c=>String(c.id)===String(id))?.name||"";
   const handleDragStart = (e, id) => { setDragId(id); e.dataTransfer.effectAllowed="move"; };
@@ -1625,7 +1628,10 @@ function ClientesFixos({ leads, setLeads, demandas, setDemandas }) {
   const moveDem = (id, status) => {
     const dem = demandas.find(d=>d.id===id);
     setDemandas(ds=>ds.map(d=>d.id===id?{...d,status}:d));
-    if (dem?.solicitacao_id) supabase.from("solicitacoes").update({ status }).eq("id", Number(dem.solicitacao_id));
+    if (dem?.solicitacao_id) {
+      supabase.from("solicitacoes").update({ status }).eq("id", Number(dem.solicitacao_id));
+      window.dispatchEvent(new CustomEvent("solic_changed"));
+    }
   };
   const openEditDem = d => { setFormDem({titulo:d.titulo,descricao:d.descricao||"",prazo:d.prazo||"",valor:String(d.valor||""),status:d.status,tag:d.tag||""}); setEditDemId(d.id); setModalDem(true); };
   return (
