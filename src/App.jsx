@@ -9,11 +9,9 @@ function useLocalStorage(key, initialValue) {
       const stored = localStorage.getItem(key);
       if (!stored) return initialValue;
       const parsed = JSON.parse(stored);
-      // Valida tipo básico — se esperado array e veio outra coisa, descarta
       if (Array.isArray(initialValue) && !Array.isArray(parsed)) return initialValue;
       return parsed;
     } catch {
-      // Dado corrompido — limpa e usa valor inicial
       try { localStorage.removeItem(key); } catch {}
       return initialValue;
     }
@@ -22,6 +20,51 @@ function useLocalStorage(key, initialValue) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
   }, [key, value]);
   return [value, setValue];
+}
+
+// ─── Storage sincronizado com Supabase (cross-device) ─────────────────────────
+function useSyncedStorage(key, initialValue) {
+  const [value, setValue] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      if (!stored) return initialValue;
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(initialValue) && !Array.isArray(parsed)) return initialValue;
+      return parsed;
+    } catch {
+      try { localStorage.removeItem(key); } catch {}
+      return initialValue;
+    }
+  });
+
+  // Persiste no localStorage sempre que muda
+  useEffect(() => {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  }, [key, value]);
+
+  // Debounce para salvar no Supabase (evita muitas chamadas)
+  const saveTimerRef = useRef(null);
+  const saveToSupabase = (val) => {
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await supabase.from("designer_data").upsert(
+          { key, value: val, updated_at: new Date().toISOString() },
+          { onConflict: "key" }
+        );
+      } catch {}
+    }, 1500);
+  };
+
+  const setValueSynced = (newVal) => {
+    setValue(prev => {
+      const resolved = typeof newVal === "function" ? newVal(prev) : newVal;
+      saveToSupabase(resolved);
+      return resolved;
+    });
+  };
+
+  return [value, setValueSynced];
 }
 
 // Limpa chaves corrompidas conhecidas na inicialização
@@ -2682,11 +2725,11 @@ export default function App() {
   const [userName, setUserName] = useLocalStorage("dh_userName", "Designer");
   const [userRole, setUserRole] = useLocalStorage("dh_userRole", "Designer Freelancer");
   const [userAvatar, setUserAvatar] = useLocalStorage("dh_userAvatar", "");
-  const [leads, setLeads] = useLocalStorage("dh_leads", initLeads);
+  const [leads, setLeads] = useSyncedStorage("dh_leads", initLeads);
   const [tasks, setTasks] = useLocalStorage("dh_tasks", initTasks);
   const [portfolio, setPortfolio] = useLocalStorage("dh_portfolio", initPortfolio);
   const [timerHistory, setTimerHistory] = useLocalStorage("dh_timer_history", initTimerHistory);
-  const [demandas, setDemandas] = useLocalStorage("dh_demandas", initDemandas);
+  const [demandas, setDemandas] = useSyncedStorage("dh_demandas", initDemandas);
   const [notes, setNotes] = useLocalStorage("dh_notes", []);
   const [despesas, setDespesas] = useLocalStorage("dh_despesas", []);
   const [view, setView] = useState(() => localStorage.getItem("dh_view") || "dashboard");
@@ -2694,9 +2737,38 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
 
-  // ── Sync boot: Kanban é a fonte de verdade ───────────────────────────────────
-  // Regra: localStorage/Kanban manda. Supabase recebe as ordens, não dá.
-  // No boot: empurra status do Kanban → Supabase. Adiciona solicitações novas ao Kanban.
+  // ── Sync boot: carrega dados do Supabase se dispositivo novo ────────────────
+  useEffect(() => {
+    async function bootSync() {
+      try {
+        // Carrega leads e demandas do Supabase se localStorage estiver vazio
+        const leadsLocal = JSON.parse(localStorage.getItem("dh_leads") || "[]");
+        const demandasLocal = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
+
+        const needLeads = !Array.isArray(leadsLocal) || leadsLocal.length === 0;
+        const needDemandas = !Array.isArray(demandasLocal) || demandasLocal.length === 0;
+
+        if (needLeads || needDemandas) {
+          const { data } = await supabase.from("designer_data").select("key,value").in("key", ["dh_leads","dh_demandas"]);
+          if (data) {
+            data.forEach(row => {
+              if (row.key === "dh_leads" && needLeads && Array.isArray(row.value) && row.value.length > 0) {
+                localStorage.setItem("dh_leads", JSON.stringify(row.value));
+                setLeads(row.value);
+              }
+              if (row.key === "dh_demandas" && needDemandas && Array.isArray(row.value) && row.value.length > 0) {
+                localStorage.setItem("dh_demandas", JSON.stringify(row.value));
+                setDemandas(row.value);
+              }
+            });
+          }
+        }
+      } catch(e) { console.error("bootSync:", e); }
+    }
+    bootSync();
+  }, []);
+
+  // ── Sync solicitacoes boot ────────────────────────────────────────────────────
   useEffect(() => {
     async function syncBoot() {
       try {
