@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, dbReady } from './lib/supabase.js';
 import { Prospeccao } from './Prospeccao';
 
@@ -347,7 +347,7 @@ function SolicDashCard({ setView, colors }) {
 }
 
 function FocusMode({ timer, onClose }) {
-  const pct = timer.dailyGoal > 0 ? Math.min(100, Math.round(timer.seconds / timer.dailyGoal * 100)) : 0;
+  const pct = timer.goal > 0 ? Math.min(100, Math.round(timer.seconds / timer.goal * 100)) : 0;
   useEffect(() => { const i = setInterval(()=>{},1000); return ()=>clearInterval(i); },[]);
   return (
     <div style={{ position:"fixed", inset:0, background:C.bg, zIndex:2000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
@@ -826,7 +826,7 @@ function BriefingEditor({ lead, onSave }) {
   );
 }
 
-function Leads({ leads, setLeads }) {
+function Leads({ leads, setLeads, demandas, setDemandas }) {
   const [vm, setVm] = useState("table");
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -850,7 +850,7 @@ function Leads({ leads, setLeads }) {
     else setLeads(ls=>[...ls,{...lead,id:Date.now()}]);
     setModal(false);
   };
-  const del = id => setLeads(ls=>ls.filter(l=>l.id!==id));
+  const del = id => { if (!window.confirm("Excluir este contato?")) return; setLeads(ls=>ls.filter(l=>l.id!==id)); if (setDemandas) setDemandas(ds=>ds.filter(d=>d.cliente_id!==id)); };
   const move = (id, status) => setLeads(ls=>ls.map(l=>l.id===id?{...l,status}:l));
   const converter = id => setLeads(ls=>ls.map(l=>l.id===id?{...l,categoria:"cliente_fixo",status:l.status==="novo"?"fechado":l.status}:l));
   const saveBriefing = (id, text) => setLeads(ls=>ls.map(l=>l.id===id?{...l,briefing_padrao:text}:l));
@@ -1093,7 +1093,7 @@ function Leads({ leads, setLeads }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // AGENDA
 // ══════════════════════════════════════════════════════════════════════════════
-function Agenda({ tasks, setTasks }) {
+function Agenda({ tasks, setTasks, demandas, setDemandas }) {
   const today = new Date().toISOString().split("T")[0];
   const [vm, setVm] = useState("list");
   const [modal, setModal] = useState(false);
@@ -1247,7 +1247,7 @@ function Agenda({ tasks, setTasks }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // FINANCEIRO INTELIGENTE + GAMIFICAÇÃO
 // ══════════════════════════════════════════════════════════════════════════════
-function Finance({ leads, demandas, timerHistory }) {
+function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
   const [selMonth, setSelMonth] = useState(NOW_MONTH);
   const [meta, setMeta] = useLocalStorage("dh_meta_mensal", 5000);
   const [editMeta, setEditMeta] = useState(false);
@@ -1559,7 +1559,7 @@ function Finance({ leads, demandas, timerHistory }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // PORTFÓLIO — com Valor e Mês
 // ══════════════════════════════════════════════════════════════════════════════
-function Portfolio({ items, setItems }) {
+function Portfolio({ items, setItems, portfolio: _p, setPortfolio: _sp }) {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [filterTag, setFilterTag] = useState("todos");
@@ -2720,10 +2720,10 @@ function SolicitarPage() {
   const params = new URLSearchParams(window.location.search);
   const clienteId = params.get("solicitar");
   const clienteNome = params.get("nome") || "Cliente";
-  const [form, setForm] = React.useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
-  const [enviado, setEnviado] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
-  const [focusedField, setFocusedField] = React.useState(null);
+  const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
+  const [enviado, setEnviado] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   async function enviar() {
     if (!form.descricao.trim()) return;
@@ -2892,12 +2892,12 @@ function PortalPublicoPage() {
   const clienteId = params.get("portal");
   const clienteNome = params.get("nome") || "Cliente";
   const primeiroNome = clienteNome.split(" ")[0];
-  const [solic, setSolic] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [showForm, setShowForm] = React.useState(false);
-  const [acao, setAcao] = React.useState({});
-  const [ajusteText, setAjusteText] = React.useState({});
-  const [sending, setSending] = React.useState({});
+  const [solic, setSolic] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [acao, setAcao] = useState({});
+  const [ajusteText, setAjusteText] = useState({});
+  const [sending, setSending] = useState({});
 
   const carregarPortal = async () => {
     try {
@@ -2908,7 +2908,7 @@ function PortalPublicoPage() {
     setLoading(false);
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     carregarPortal();
     const interval = setInterval(carregarPortal, 15000);
     return () => clearInterval(interval);
@@ -3242,9 +3242,9 @@ function PortalPublicoPage() {
 
 // Form inline reutilizável para o portal
 function SolicitarFormInline({ clienteId, clienteNome, onEnviado }) {
-  const [form, setForm] = React.useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
-  const [loading, setLoading] = React.useState(false);
-  const [focused, setFocused] = React.useState(null);
+  const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
+  const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState(null);
   const inp = (f) => ({ background: focused===f?"#13131f":"#0a0a18", border:`1.5px solid ${focused===f?"#a78bfa":"#1e1e35"}`, borderRadius:9, padding:"10px 13px", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box", transition:"all 0.2s" });
   const ta = (f, rows=3) => ({...inp(f), resize:"vertical", lineHeight:1.6, minHeight:rows*22+20});
 
@@ -3303,7 +3303,7 @@ function PortalCliente({ leads, setDemandas }) {
   const [filtroStatus, setFiltroStatus] = useState("");
   const cliente = clientes.find(c=>String(c.id)===selCli);
 
-  const carregarSolic = React.useCallback(() => {
+  const carregarSolic = useCallback(() => {
     if (!selCli) return;
     setLoading(true);
     supabase.from("solicitacoes")
@@ -3867,7 +3867,7 @@ export default function App() {
           {view==="agenda"      && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="timer"       && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
           {view==="finance"     && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory} despesas={despesas} setDespesas={setDespesas}/>}
-          {view==="portfolio"   && <Portfolio portfolio={portfolio} setPortfolio={setPortfolio}/>}
+          {view==="portfolio"   && <Portfolio items={portfolio} setItems={setPortfolio}/>}
           {view==="notes"       && <Notes notes={notes} setNotes={setNotes}/>}
           {view==="relatorio"   && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
           {view==="formulario"  && <FormularioPedido leads={leads}/>}
