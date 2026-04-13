@@ -2698,7 +2698,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                       <div style={{ color:C.muted, fontSize:11, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.07em" }}>Prazo</div>
                       <div style={{ color:atrasado?C.red:C.text, fontWeight:700, fontSize:14 }}>📅 {d.prazo}</div>
                     </div>
-                  )}
+                 )}
                   {d.valor > 0 && (
                     <div style={{ background:C.surface, borderRadius:10, padding:"10px 14px" }}>
                       <div style={{ color:C.muted, fontSize:11, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.07em" }}>Valor</div>
@@ -2719,14 +2719,15 @@ function Kanban({ demandas, setDemandas, leads }) {
                 <textarea
                   value={notaEdit}
                   onChange={e => { setNotaEdit(e.target.value); setNotaSaved(false); }}
-                  placeholder={"Ex:
+                  placeholder={`Ex:
+
 MATERIAL: https://drive.google.com/...
 
 DETALHAMENTO:
 • Banner principal (7 artes) – R$ 70,00
 • Banner checkout (1 arte) – R$ 10,00
 
-TOTAL: R$ 80,00"}
+TOTAL: R$ 80,00`}
                   rows={5}
                   style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 12px", color:C.text, fontSize:12, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}
                 />
