@@ -67,13 +67,23 @@ try {
 } catch {}
 
 
-const C = {
-  bg:"#080810", surface:"#0f0f1a", card:"#14141f", cardHover:"#1a1a2e",
-  border:"#1e1e30", accent:"#a78bfa", accentGlow:"#7c3aed",
-  teal:"#2dd4bf", orange:"#fb923c", red:"#f87171", green:"#4ade80",
-  yellow:"#facc15", text:"#e2e8f0", muted:"#64748b", subtle:"#334155",
-  pink:"#f472b6",
+const THEMES = {
+  dark: {
+    bg:"#080810", surface:"#0f0f1a", card:"#14141f", cardHover:"#1a1a2e",
+    border:"#1e1e30", accent:"#a78bfa", accentGlow:"#7c3aed",
+    teal:"#2dd4bf", orange:"#fb923c", red:"#f87171", green:"#4ade80",
+    yellow:"#facc15", text:"#e2e8f0", muted:"#64748b", subtle:"#334155",
+    pink:"#f472b6",
+  },
+  light: {
+    bg:"#f1f5f9", surface:"#ffffff", card:"#ffffff", cardHover:"#f8fafc",
+    border:"#e2e8f0", accent:"#7c3aed", accentGlow:"#6d28d9",
+    teal:"#0d9488", orange:"#ea580c", red:"#dc2626", green:"#16a34a",
+    yellow:"#ca8a04", text:"#0f172a", muted:"#64748b", subtle:"#cbd5e1",
+    pink:"#db2777",
+  }
 };
+let C = THEMES.dark;
 
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const MONTHS_SHORT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -3735,7 +3745,7 @@ export default function App() {
 
   const badgeSolic = Math.max(0, solicPendentes - solicVistas);
 
-  useEffect(() => { C = THEMES[theme]; document.body.style.background=THEMES[theme].bg; }, [theme]);
+  useEffect(() => { document.body.style.background=THEMES[theme].bg; }, [theme]);
   useEffect(() => { localStorage.setItem("dh_view", view); }, [view]);
 
   const timer = useTimer((date, secs) => {
