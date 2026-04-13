@@ -2461,6 +2461,8 @@ function Kanban({ demandas, setDemandas, leads }) {
   const [dragOver,  setDragOver]  = useState(null);
   const [modalCard, setModalCard] = useState(null); // demanda selecionada
   const [filterCli, setFilterCli] = useState("todos");
+  const [notaEdit,  setNotaEdit]  = useState("");    // nota_designer editing
+  const [notaSaved, setNotaSaved] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -2565,7 +2567,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                       draggable
                       onDragStart={e => onDragStart(e, d.id)}
                       onDragEnd={onDragEnd}
-                      onClick={() => setModalCard(d)}
+                      onClick={() => { setModalCard(d); setNotaEdit(d.nota_designer||""); setNotaSaved(false); }}
                       style={{
                         background: isDragging ? `${cfg.color}15` : C.card,
                         border: `1px solid ${atrasado ? C.red : isDragging ? cfg.color : C.border}`,
@@ -2684,6 +2686,12 @@ function Kanban({ demandas, setDemandas, leads }) {
                     <div style={{ color:C.text, fontSize:13, lineHeight:1.6 }}>{d.descricao}</div>
                   </div>
                 )}
+                {d.nota_designer && (
+                  <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}25`, borderRadius:10, padding:"12px 14px" }}>
+                    <div style={{ color:C.accent, fontSize:11, marginBottom:4, textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:700 }}>📝 Nota / Cobrança</div>
+                    <div style={{ color:C.text, fontSize:12, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{d.nota_designer}</div>
+                  </div>
+                )}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                   {d.prazo && (
                     <div style={{ background:C.surface, borderRadius:10, padding:"10px 14px" }}>
@@ -2697,6 +2705,44 @@ function Kanban({ demandas, setDemandas, leads }) {
                       <div style={{ color:C.green, fontWeight:700, fontSize:14 }}>R$ {d.valor.toLocaleString("pt-BR")}</div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Nota do designer */}
+              <div style={{ marginBottom:16 }}>
+                <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>
+                  📝 Nota / Detalhamento de cobrança
+                </div>
+                <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}20`, borderRadius:9, padding:"8px 12px", marginBottom:7, fontSize:11, color:C.muted, lineHeight:1.5 }}>
+                  💡 Anote o detalhamento do serviço, valores cobrados, links. <strong style={{ color:C.accent }}>Visível ao cliente no portal.</strong>
+                </div>
+                <textarea
+                  value={notaEdit}
+                  onChange={e => { setNotaEdit(e.target.value); setNotaSaved(false); }}
+                  placeholder={"Ex:
+MATERIAL: https://drive.google.com/...
+
+DETALHAMENTO:
+• Banner principal (7 artes) – R$ 70,00
+• Banner checkout (1 arte) – R$ 10,00
+
+TOTAL: R$ 80,00"}
+                  rows={5}
+                  style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 12px", color:C.text, fontSize:12, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}
+                />
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:7 }}>
+                  <span style={{ color:notaSaved?C.green:C.muted, fontSize:11 }}>{notaSaved?"✓ Nota salva":"Edite e salve"}</span>
+                  <button onClick={async () => {
+                    setDemandas(ds => ds.map(x => x.id===d.id ? {...x, nota_designer:notaEdit} : x));
+                    if (d.solicitacao_id) {
+                      await supabase.from("solicitacoes").update({ resposta_designer: notaEdit }).eq("id", Number(d.solicitacao_id));
+                      window.dispatchEvent(new CustomEvent("solic_changed"));
+                    }
+                    setNotaSaved(true);
+                    setTimeout(() => setNotaSaved(false), 3000);
+                  }} style={{ background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:8, padding:"6px 16px", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    💾 Salvar nota
+                  </button>
                 </div>
               </div>
 
@@ -2725,15 +2771,20 @@ function Kanban({ demandas, setDemandas, leads }) {
 
 
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PORTAL PÚBLICO — DESIGN CLARO E MODERNO
+// ══════════════════════════════════════════════════════════════════════════════
+
 // ─── Página pública: cliente solicita demanda ──────────────────────────────
 function SolicitarPage() {
   const params = new URLSearchParams(window.location.search);
-  const clienteId = params.get("solicitar");
+  const clienteId   = params.get("solicitar");
   const clienteNome = params.get("nome") || "Cliente";
-  const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
+  const [form, setForm]   = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
   const [enviado, setEnviado] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState(null);
+  const [focused, setFocused] = useState(null);
 
   async function enviar() {
     if (!form.descricao.trim()) return;
@@ -2748,148 +2799,104 @@ function SolicitarPage() {
         created_at: new Date().toISOString(),
       }]);
       setEnviado(true);
-    } catch(e) {
-      alert("Erro ao enviar. Tente novamente.");
-    }
+    } catch { alert("Erro ao enviar. Tente novamente."); }
     setLoading(false);
   }
 
-  const inp = (field) => ({
-    background: focusedField === field ? "#1a1a2e" : "#13131f",
-    border: `1.5px solid ${focusedField === field ? "#a78bfa" : "#252538"}`,
-    borderRadius: 10,
-    padding: "11px 14px",
-    color: "#e8e6f0",
-    fontSize: 14,
-    width: "100%",
-    outline: "none",
-    fontFamily: "'DM Sans', sans-serif",
-    boxSizing: "border-box",
-    transition: "all 0.2s",
-    lineHeight: 1.6,
-  });
-
-  const ta = (field, rows=4) => ({ ...inp(field), resize: "vertical", minHeight: rows * 24 + 22 });
+  const S = {
+    page:  { minHeight:"100vh", background:"#f7f8fc", fontFamily:"'Plus Jakarta Sans','DM Sans',sans-serif" },
+    card:  { background:"#fff", borderRadius:20, padding:"32px 30px", boxShadow:"0 4px 32px rgba(100,80,200,0.08), 0 1px 4px rgba(0,0,0,0.04)" },
+    label: { display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:7, textTransform:"uppercase", letterSpacing:"0.1em" },
+    inp:   (f) => ({ background:focused===f?"#fff":"#fafafa", border:`1.5px solid ${focused===f?"#7c3aed":"#e5e7eb"}`, borderRadius:10, padding:"11px 14px", color:"#111827", fontSize:14, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", transition:"all 0.2s", lineHeight:1.6 }),
+  };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#080810", fontFamily:"'DM Sans',sans-serif" }}>
+    <div style={S.page}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; }
-        body { background:#080810; }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
-        input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.4); }
+        body { background:#f7f8fc; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+        input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.6); }
       `}</style>
 
       {/* Header */}
-      <div style={{ borderBottom:"1px solid #1a1a2e", padding:"16px 28px", background:"#0d0d1a", display:"flex", alignItems:"center", gap:12 }}>
+      <div style={{ background:"#fff", borderBottom:"1px solid #f0f0f6", padding:"16px 28px", display:"flex", alignItems:"center", gap:11 }}>
         <div style={{ width:34, height:34, borderRadius:10, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <span style={{ color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16 }}>F</span>
+          <span style={{ color:"#fff", fontWeight:900, fontSize:15 }}>F</span>
         </div>
         <div>
-          <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15 }}>FluxioHUB</div>
-          <div style={{ color:"#4a4a6a", fontSize:11 }}>Portal do Cliente</div>
+          <div style={{ color:"#111827", fontWeight:800, fontSize:15 }}>FluxioHUB</div>
+          <div style={{ color:"#9ca3af", fontSize:11 }}>Portal do Cliente</div>
         </div>
       </div>
 
       {enviado ? (
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"calc(100vh - 65px)", padding:20, animation:"fadeUp 0.5s ease" }}>
-          <div style={{ textAlign:"center", maxWidth:400 }}>
-            <div style={{ width:80, height:80, borderRadius:"50%", background:"linear-gradient(135deg,#059669,#10b981)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px", boxShadow:"0 0 40px #10b98140" }}>
-              <PortalIco n="check" s={36} c="#fff"/>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"calc(100vh - 65px)", padding:20 }}>
+          <div style={{ textAlign:"center", animation:"fadeUp 0.5s ease" }}>
+            <div style={{ width:80, height:80, borderRadius:"50%", background:"linear-gradient(135deg,#059669,#10b981)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px", boxShadow:"0 8px 32px #10b98130" }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
-            <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:24, marginBottom:10 }}>Solicitação enviada!</div>
-            <div style={{ color:"#5a5a7a", fontSize:14, lineHeight:1.8 }}>Recebemos seu pedido com sucesso.<br/>Acompanhe o andamento pelo portal.</div>
+            <div style={{ color:"#111827", fontWeight:800, fontSize:24, marginBottom:10 }}>Solicitação enviada!</div>
+            <div style={{ color:"#6b7280", fontSize:14, lineHeight:1.8 }}>Recebemos seu pedido com sucesso.<br/>Acompanhe o andamento pelo portal.</div>
           </div>
         </div>
       ) : (
         <div style={{ maxWidth:560, margin:"0 auto", padding:"36px 20px", animation:"fadeUp 0.4s ease" }}>
-          {/* Greeting */}
           <div style={{ marginBottom:28 }}>
-            <div style={{ color:"#5a5a7a", fontSize:13, marginBottom:4 }}>Nova solicitação para</div>
-            <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:26, lineHeight:1.1 }}>{clienteNome}</div>
+            <div style={{ color:"#9ca3af", fontSize:13, marginBottom:4 }}>Nova solicitação</div>
+            <div style={{ color:"#111827", fontWeight:800, fontSize:26, lineHeight:1.1 }}>{clienteNome}</div>
           </div>
-
-          <div style={{ background:"#0d0d1a", border:"1px solid #1a1a2e", borderRadius:18, padding:28, display:"flex", flexDirection:"column", gap:18 }}>
-
-            {/* Tipo */}
-            <div>
-              <label style={{ display:"block", color:"#6a6a8a", fontSize:11, fontWeight:700, marginBottom:7, textTransform:"uppercase", letterSpacing:"0.1em" }}>Tipo de projeto</label>
+          <div style={S.card}>
+            <div style={{ marginBottom:18 }}>
+              <label style={S.label}>Tipo de projeto</label>
               <input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))}
-                onFocus={()=>setFocusedField("tipo")} onBlur={()=>setFocusedField(null)}
-                placeholder="Ex: Post Instagram, Logotipo, Banner, Landing page..."
-                style={inp("tipo")}/>
+                onFocus={()=>setFocused("tipo")} onBlur={()=>setFocused(null)}
+                placeholder="Ex: Post Instagram, Logo, Banner, Landing page..."
+                style={S.inp("tipo")}/>
             </div>
-
-            {/* Descrição */}
-            <div>
-              <label style={{ display:"flex", alignItems:"center", gap:6, color:"#6a6a8a", fontSize:11, fontWeight:700, marginBottom:7, textTransform:"uppercase", letterSpacing:"0.1em" }}>
+            <div style={{ marginBottom:18 }}>
+              <label style={{ ...S.label, display:"flex", alignItems:"center", gap:6 }}>
                 Descrição do projeto
-                <span style={{ background:"#a78bfa20", color:"#a78bfa", fontSize:10, padding:"1px 7px", borderRadius:20, textTransform:"none", letterSpacing:0 }}>obrigatório</span>
+                <span style={{ background:"#f3eeff", color:"#7c3aed", fontSize:10, padding:"1px 8px", borderRadius:20, textTransform:"none", letterSpacing:0, fontWeight:600 }}>obrigatório</span>
               </label>
               <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))}
-                onFocus={()=>setFocusedField("descricao")} onBlur={()=>setFocusedField(null)}
-                placeholder="O que precisa ser criado? Qual o objetivo, público-alvo, cores preferidas, textos para incluir..."
-                style={ta("descricao", 5)}/>
+                onFocus={()=>setFocused("desc")} onBlur={()=>setFocused(null)}
+                placeholder="O que precisa ser criado? Objetivo, público-alvo, cores preferidas, textos..."
+                rows={5} style={{...S.inp("desc"), resize:"vertical"}}/>
             </div>
-
-            {/* Prazo */}
-            <div>
-              <label style={{ display:"block", color:"#6a6a8a", fontSize:11, fontWeight:700, marginBottom:7, textTransform:"uppercase", letterSpacing:"0.1em" }}>Prazo desejado</label>
+            <div style={{ marginBottom:18 }}>
+              <label style={S.label}>Prazo desejado</label>
               <div style={{ position:"relative" }}>
-                <div style={{ position:"absolute", left:13, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}>
-                  <PortalIco n="calendar" s={15} c="#4a4a6a"/>
-                </div>
+                <svg style={{ position:"absolute", left:13, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 <input type="date" value={form.prazo} onChange={e=>setForm(f=>({...f,prazo:e.target.value}))}
-                  onFocus={()=>setFocusedField("prazo")} onBlur={()=>setFocusedField(null)}
-                  style={{...inp("prazo"), paddingLeft:38}}/>
+                  onFocus={()=>setFocused("prazo")} onBlur={()=>setFocused(null)}
+                  style={{...S.inp("prazo"), paddingLeft:38}}/>
               </div>
             </div>
-
-            {/* Referências */}
-            <div>
-              <label style={{ display:"block", color:"#6a6a8a", fontSize:11, fontWeight:700, marginBottom:7, textTransform:"uppercase", letterSpacing:"0.1em" }}>Referências</label>
-              <div style={{ position:"relative" }}>
-                <div style={{ position:"absolute", left:13, top:14, pointerEvents:"none" }}>
-                  <PortalIco n="link" s={14} c="#4a4a6a"/>
-                </div>
-                <textarea value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))}
-                  onFocus={()=>setFocusedField("referencias")} onBlur={()=>setFocusedField(null)}
-                  placeholder="Links de referência, Pinterest, exemplos que você gostou..."
-                  style={{...ta("referencias", 2), paddingLeft:36}}/>
-              </div>
+            <div style={{ marginBottom:18 }}>
+              <label style={S.label}>Referências</label>
+              <textarea value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))}
+                onFocus={()=>setFocused("ref")} onBlur={()=>setFocused(null)}
+                placeholder="Links de referência, Pinterest, exemplos que você gostou..."
+                rows={2} style={{...S.inp("ref"), resize:"vertical"}}/>
             </div>
-
-            {/* Observações */}
-            <div>
-              <label style={{ display:"block", color:"#6a6a8a", fontSize:11, fontWeight:700, marginBottom:7, textTransform:"uppercase", letterSpacing:"0.1em" }}>Observações</label>
+            <div style={{ marginBottom:24 }}>
+              <label style={S.label}>Observações adicionais</label>
               <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))}
-                onFocus={()=>setFocusedField("observacoes")} onBlur={()=>setFocusedField(null)}
+                onFocus={()=>setFocused("obs")} onBlur={()=>setFocused(null)}
                 placeholder="Qualquer detalhe extra que queira comunicar..."
-                style={ta("observacoes", 2)}/>
+                rows={2} style={{...S.inp("obs"), resize:"vertical"}}/>
             </div>
-
-            {/* Submit */}
             <button onClick={enviar} disabled={!form.descricao.trim() || loading}
-              style={{
-                width:"100%",
-                background: (!form.descricao.trim()||loading) ? "#1a1a2e" : "linear-gradient(135deg,#6d28d9,#a78bfa)",
-                border:"none", borderRadius:12, padding:"14px",
-                color: (!form.descricao.trim()||loading) ? "#3a3a5a" : "#fff",
-                fontSize:15, fontWeight:700, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer",
-                fontFamily:"'Syne',sans-serif", letterSpacing:"0.02em",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:10,
-                boxShadow: (!form.descricao.trim()||loading) ? "none" : "0 4px 20px #6d28d940",
-                transition:"all 0.2s",
-              }}>
-              {loading ? (
-                <span>Enviando...</span>
-              ) : (
-                <><PortalIco n="send" s={16} c="#fff"/> Enviar solicitação</>
-              )}
+              style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#f3f4f6":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:12, padding:"14px", color:(!form.descricao.trim()||loading)?"#9ca3af":"#fff", fontSize:15, fontWeight:700, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:10, boxShadow:(!form.descricao.trim()||loading)?"none":"0 4px 20px #6d28d930", transition:"all 0.2s" }}>
+              {loading ? "Enviando..." : <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Enviar solicitação
+              </>}
             </button>
           </div>
-          <div style={{ textAlign:"center", color:"#2a2a4a", fontSize:11, marginTop:20 }}>Powered by FluxioHUB</div>
+          <div style={{ textAlign:"center", color:"#d1d5db", fontSize:11, marginTop:20 }}>Powered by FluxioHUB</div>
         </div>
       )}
     </div>
@@ -2898,341 +2905,292 @@ function SolicitarPage() {
 
 // ─── Página pública: portal do cliente ────────────────────────────────────────
 function PortalPublicoPage() {
-  const params = new URLSearchParams(window.location.search);
-  const clienteId = params.get("portal");
+  const params      = new URLSearchParams(window.location.search);
+  const clienteId   = params.get("portal");
   const clienteNome = params.get("nome") || "Cliente";
-  const primeiroNome = clienteNome.split(" ")[0];
-  const [solic, setSolic] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const firstName   = clienteNome.split(" ")[0];
+  const [solic, setSolic]       = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [acao, setAcao] = useState({});
+  const [acao, setAcao]         = useState({});
   const [ajusteText, setAjusteText] = useState({});
-  const [sending, setSending] = useState({});
+  const [sending, setSending]   = useState({});
 
-  const carregarPortal = async () => {
+  const carregar = async () => {
     try {
       const { data } = await supabase.from("solicitacoes").select("*").order("created_at", { ascending:false });
-      const filtered = (data||[]).filter(s => String(s.cliente_id) === String(clienteId) || String(s.cliente_id) === String(Number(clienteId)));
-      setSolic(filtered);
+      setSolic((data||[]).filter(s => String(s.cliente_id)===String(clienteId) || String(s.cliente_id)===String(Number(clienteId))));
     } catch {}
     setLoading(false);
   };
-
-  useEffect(() => {
-    carregarPortal();
-    const interval = setInterval(carregarPortal, 15000);
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => { carregar(); const t = setInterval(carregar, 15000); return ()=>clearInterval(t); }, []);
 
   async function aprovar(id) {
     setSending(s=>({...s,[id]:true}));
     await supabase.from("solicitacoes").update({ status:"finalizado" }).eq("id", id);
-    setSolic(prev => prev.map(s => s.id===id ? {...s, status:"finalizado"} : s));
-    setAcao(a => ({...a, [id]:null}));
-    setSending(s=>({...s,[id]:false}));
+    setSolic(p=>p.map(s=>s.id===id?{...s,status:"finalizado"}:s));
+    setAcao(a=>({...a,[id]:null})); setSending(s=>({...s,[id]:false}));
   }
-
   async function pedirAjuste(id) {
-    const obs = ajusteText[id] || "";
-    if (!obs.trim()) return;
-    setSending(s=>({...s,[id]:"ajuste"}));
-    const msg = `[Ajuste solicitado]: ${obs}`;
-    await supabase.from("solicitacoes").update({ status:"ajustes", resposta_designer: msg }).eq("id", id);
-    setSolic(prev => prev.map(s => s.id===id ? {...s, status:"ajustes", resposta_designer:msg} : s));
-    setAcao(a => ({...a, [id]:null}));
-    setAjusteText(t => ({...t, [id]:""}));
-    setSending(s=>({...s,[id]:false}));
+    const obs = ajusteText[id]||""; if (!obs.trim()) return;
+    setSending(s=>({...s,[id]:"aj"}));
+    await supabase.from("solicitacoes").update({ status:"ajustes", resposta_designer:`[Ajuste solicitado]: ${obs}` }).eq("id", id);
+    setSolic(p=>p.map(s=>s.id===id?{...s,status:"ajustes",resposta_designer:`[Ajuste solicitado]: ${obs}`}:s));
+    setAcao(a=>({...a,[id]:null})); setAjusteText(t=>({...t,[id]:""})); setSending(s=>({...s,[id]:false}));
   }
 
-  const STATUS_CFG = {
-    pendente:   { label:"Recebido",              color:"#6366f1", bg:"#6366f115", step:0, icon:"inbox",   desc:"Sua solicitação foi recebida com sucesso." },
-    triagem:    { label:"Em triagem",            color:"#06b6d4", bg:"#06b6d415", step:1, icon:"search",  desc:"Estamos analisando sua solicitação." },
-    agenda:     { label:"Agendado",              color:"#8b5cf6", bg:"#8b5cf615", step:1, icon:"calendar",desc:"Agendado para produção em breve." },
-    em_criacao: { label:"Em criação",            color:"#a78bfa", bg:"#a78bfa15", step:2, icon:"edit",    desc:"O designer está trabalhando agora." },
-    revisao:    { label:"Em revisão",            color:"#38bdf8", bg:"#38bdf815", step:3, icon:"eye",     desc:"Revisão final em andamento." },
-    aprovacao:  { label:"Aguarda sua aprovação", color:"#f59e0b", bg:"#f59e0b15", step:4, icon:"alert",   desc:"Pronto! Revise e nos dê seu feedback." },
-    ajustes:    { label:"Ajustes em andamento",  color:"#ef4444", bg:"#ef444415", step:2, icon:"refresh", desc:"Recebemos seu feedback, ajustando." },
-    finalizado: { label:"Concluído",             color:"#10b981", bg:"#10b98115", step:5, icon:"check",   desc:"Projeto aprovado e finalizado!" },
-    cancelado:  { label:"Cancelado",             color:"#64748b", bg:"#64748b15", step:0, icon:"close",   desc:"" },
+  const ST = {
+    pendente:   { label:"Recebido",              color:"#6366f1", bg:"#f0f0ff", step:0 },
+    triagem:    { label:"Em triagem",            color:"#0891b2", bg:"#ecfeff", step:1 },
+    agenda:     { label:"Agendado",              color:"#7c3aed", bg:"#f5f3ff", step:1 },
+    em_criacao: { label:"Em criação",            color:"#7c3aed", bg:"#f5f3ff", step:2 },
+    revisao:    { label:"Em revisão",            color:"#0369a1", bg:"#e0f2fe", step:3 },
+    aprovacao:  { label:"Aguarda sua aprovação", color:"#d97706", bg:"#fffbeb", step:4 },
+    ajustes:    { label:"Ajustes em andamento",  color:"#dc2626", bg:"#fef2f2", step:2 },
+    finalizado: { label:"Concluído ✓",           color:"#059669", bg:"#f0fdf4", step:5 },
+    cancelado:  { label:"Cancelado",             color:"#6b7280", bg:"#f9fafb", step:0 },
   };
+  const STEPS = ["Recebido","Análise","Produção","Revisão","Aprovação","Concluído"];
 
-  const STEPS = [
-    { label:"Recebido",   icon:"inbox"   },
-    { label:"Em análise", icon:"search"  },
-    { label:"Produção",   icon:"edit"    },
-    { label:"Revisão",    icon:"eye"     },
-    { label:"Aprovação",  icon:"thumbsup"},
-    { label:"Concluído",  icon:"check"   },
-  ];
+  const total      = solic.length;
+  const andamento  = solic.filter(s=>!["finalizado","cancelado","pendente"].includes(s.status)).length;
+  const aguardando = solic.filter(s=>s.status==="aprovacao").length;
 
-  const total       = solic.length;
-  const emAndamento = solic.filter(s=>!["finalizado","cancelado","pendente"].includes(s.status)).length;
-  const aguardando  = solic.filter(s=>s.status==="aprovacao").length;
-  const concluidos  = solic.filter(s=>s.status==="finalizado").length;
+  const fmtD = (dt) => { try { return new Date(dt.includes("T")?dt:dt+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"}); } catch { return dt; } };
 
-  const bg    = "#080810";
-  const card  = "#0d0d1a";
-  const border= "#1a1a2e";
-
-  const fmtDate = (dt) => {
-    if (!dt) return null;
-    try {
-      const d = new Date(dt.includes("T") ? dt : dt+"T12:00:00");
-      return d.toLocaleDateString("pt-BR", { day:"numeric", month:"long", year:"numeric" });
-    } catch { return dt; }
+  const S = {
+    page:  { minHeight:"100vh", background:"#f7f8fc", fontFamily:"'Plus Jakarta Sans','DM Sans',sans-serif" },
+    card:  { background:"#fff", borderRadius:20, boxShadow:"0 2px 16px rgba(100,80,200,0.07), 0 1px 4px rgba(0,0,0,0.04)", overflow:"hidden" },
+    pill:  (cfg) => ({ display:"inline-flex", alignItems:"center", gap:5, background:cfg.bg, color:cfg.color, fontSize:12, fontWeight:700, padding:"5px 12px", borderRadius:20 }),
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:bg, fontFamily:"'DM Sans',sans-serif" }}>
+    <div style={S.page}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; }
-        body { margin:0; background:${bg}; }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
-        @keyframes pulse  { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.08);opacity:0.9} }
-        @keyframes glow   { 0%,100%{box-shadow:0 0 16px #f59e0b30} 50%{box-shadow:0 0 32px #f59e0b60} }
-        ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:${bg}; } ::-webkit-scrollbar-thumb { background:#1e1e35; border-radius:99px; }
-        input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.4); }
+        body { background:#f7f8fc; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+        @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.7} }
+        ::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:99px; }
+        input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.6); }
       `}</style>
 
       {/* ── HEADER ── */}
-      <div style={{ background:card, borderBottom:`1px solid ${border}`, padding:"20px 32px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:14 }}>
+      <div style={{ background:"#fff", borderBottom:"1px solid #f0f0f6", padding:"18px 32px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-          {/* Avatar */}
-          <div style={{ width:50, height:50, borderRadius:14, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:"0 4px 16px #6d28d940" }}>
-            <span style={{ color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22 }}>{primeiroNome.charAt(0).toUpperCase()}</span>
+          <div style={{ width:48, height:48, borderRadius:14, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:"0 4px 14px #6d28d925" }}>
+            <span style={{ color:"#fff", fontWeight:900, fontSize:20 }}>{firstName.charAt(0).toUpperCase()}</span>
           </div>
           <div>
-            <div style={{ color:"#5a5a7a", fontSize:12, marginBottom:2 }}>Olá, seja bem-vindo(a) 👋</div>
-            <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22, lineHeight:1 }}>{clienteNome}</div>
+            <div style={{ color:"#9ca3af", fontSize:12, marginBottom:1 }}>Olá, seja bem-vindo(a) 👋</div>
+            <div style={{ color:"#111827", fontWeight:800, fontSize:20 }}>{clienteNome}</div>
           </div>
         </div>
         <button onClick={()=>setShowForm(f=>!f)}
-          style={{ background: showForm ? "#1a1a2e" : "linear-gradient(135deg,#6d28d9,#a78bfa)", border: showForm ? `1px solid ${border}` : "none", borderRadius:12, padding:"11px 22px", color: showForm ? "#6a6a8a" : "#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow: showForm ? "none" : "0 4px 16px #6d28d940", display:"flex", alignItems:"center", gap:8, transition:"all 0.2s" }}>
-          {showForm ? <><PortalIco n="close" s={15} c="#6a6a8a"/> Cancelar</> : <><PortalIco n="plus" s={15} c="#fff"/> Nova solicitação</>}
+          style={{ background:showForm?"#f3f4f6":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:11, padding:"10px 20px", color:showForm?"#6b7280":"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:showForm?"none":"0 4px 14px #6d28d925", display:"flex", alignItems:"center", gap:7, transition:"all 0.2s" }}>
+          {showForm
+            ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Cancelar</>
+            : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nova solicitação</>
+          }
         </button>
       </div>
 
-      <div style={{ maxWidth:780, margin:"0 auto", padding:"32px 20px", animation:"fadeUp 0.4s ease" }}>
+      <div style={{ maxWidth:800, margin:"0 auto", padding:"32px 20px" }}>
 
         {/* ── STATS ── */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:28 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:28, animation:"fadeUp 0.3s ease" }}>
           {[
-            { label:"Total de pedidos", value:total,       color:"#8b5cf6", icon:"inbox"   },
-            { label:"Em andamento",     value:emAndamento, color:"#06b6d4", icon:"tool"    },
-            { label:"Aguardando você",  value:aguardando,  color:"#f59e0b", icon:"alert",
-              pulse: aguardando > 0 },
-          ].map(stat=>(
-            <div key={stat.label} style={{ background:card, border:`1px solid ${stat.pulse?stat.color+"50":border}`, borderRadius:16, padding:"18px 20px", position:"relative", overflow:"hidden", animation: stat.pulse ? "glow 2s infinite" : "none" }}>
-              <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${stat.color},transparent)` }}/>
-              <div style={{ width:36, height:36, borderRadius:10, background:`${stat.color}18`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:12 }}>
-                <PortalIco n={stat.icon} s={17} c={stat.color}/>
-              </div>
-              <div style={{ color:stat.color, fontSize:30, fontWeight:800, fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>{stat.value}</div>
-              <div style={{ color:"#4a4a6a", fontSize:12 }}>{stat.label}</div>
+            { label:"Total de pedidos", v:total,      color:"#7c3aed", light:"#f5f3ff", Icon:()=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> },
+            { label:"Em andamento",     v:andamento,  color:"#0891b2", light:"#ecfeff", Icon:()=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> },
+            { label:"Aguardando você",  v:aguardando, color:"#d97706", light:"#fffbeb", pulse:true, Icon:()=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
+          ].map(st=>(
+            <div key={st.label} style={{ background:"#fff", borderRadius:18, padding:"18px 20px", boxShadow:`0 2px 16px rgba(100,80,200,0.06)`, border:`1.5px solid ${st.pulse&&aguardando>0?"#fcd34d":"#f0f0f6"}`, position:"relative", overflow:"hidden" }}>
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${st.color}60,${st.color})`, borderRadius:"18px 18px 0 0" }}/>
+              <div style={{ width:38, height:38, borderRadius:10, background:st.light, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:12 }}><st.Icon/></div>
+              <div style={{ color:st.color, fontSize:32, fontWeight:800, lineHeight:1, marginBottom:4 }}>{st.v}</div>
+              <div style={{ color:"#9ca3af", fontSize:12 }}>{st.label}</div>
             </div>
           ))}
         </div>
 
-        {/* ── FORM NOVA SOLICITAÇÃO ── */}
+        {/* ── FORM ── */}
         {showForm && (
-          <div style={{ background:card, border:`1px solid #6d28d940`, borderRadius:18, padding:24, marginBottom:24, animation:"fadeUp 0.3s ease" }}>
-            <div style={{ color:"#e8e6f0", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16, marginBottom:18 }}>Nova solicitação</div>
-            <SolicitarFormInline clienteId={clienteId} clienteNome={clienteNome} onEnviado={()=>{ setShowForm(false); carregarPortal(); }}/>
+          <div style={{ background:"#fff", borderRadius:20, padding:24, marginBottom:24, boxShadow:"0 2px 16px rgba(100,80,200,0.07)", border:"1.5px solid #ede9fe", animation:"fadeUp 0.3s ease" }}>
+            <div style={{ color:"#111827", fontWeight:700, fontSize:16, marginBottom:18 }}>Nova solicitação</div>
+            <SolicitarFormInline clienteId={clienteId} clienteNome={clienteNome} onEnviado={()=>{setShowForm(false);carregar();}}/>
           </div>
         )}
 
         {/* ── ALERTA APROVAÇÃO ── */}
         {aguardando > 0 && (
-          <div style={{ background:"#f59e0b0e", border:"1px solid #f59e0b40", borderRadius:16, padding:"16px 20px", marginBottom:24, display:"flex", alignItems:"center", gap:14 }}>
-            <div style={{ width:42, height:42, borderRadius:12, background:"#f59e0b20", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, animation:"pulse 2s infinite" }}>
-              <PortalIco n="alert" s={20} c="#f59e0b"/>
+          <div style={{ background:"#fffbeb", border:"1.5px solid #fcd34d", borderRadius:16, padding:"14px 20px", marginBottom:22, display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ width:40, height:40, borderRadius:11, background:"#fef3c7", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
             <div>
-              <div style={{ color:"#f59e0b", fontWeight:700, fontSize:15 }}>{aguardando} projeto{aguardando>1?"s":""} aguardando sua aprovação</div>
-              <div style={{ color:"#f59e0b80", fontSize:12, marginTop:3 }}>Role para baixo para revisar e aprovar ou solicitar ajustes.</div>
+              <div style={{ color:"#92400e", fontWeight:700, fontSize:14 }}>{aguardando} projeto{aguardando>1?"s":""} aguardando sua aprovação</div>
+              <div style={{ color:"#b45309", fontSize:12, marginTop:2 }}>Role para baixo para revisar e aprovar.</div>
             </div>
           </div>
         )}
 
         {/* ── LOADING ── */}
-        {loading && (
-          <div style={{ textAlign:"center", padding:80, color:"#3a3a5a" }}>
-            <div style={{ width:40, height:40, borderRadius:"50%", border:`2px solid ${border}`, borderTopColor:"#6d28d9", animation:"spin 1s linear infinite", margin:"0 auto 16px" }}/>
-            <div style={{ fontSize:14 }}>Carregando projetos...</div>
-          </div>
-        )}
+        {loading && <div style={{ textAlign:"center", padding:80, color:"#d1d5db" }}>Carregando...</div>}
 
         {/* ── EMPTY ── */}
-        {!loading && solic.length === 0 && (
-          <div style={{ textAlign:"center", padding:"60px 20px", color:"#3a3a5a" }}>
-            <div style={{ width:64, height:64, borderRadius:18, background:"#1a1a2e", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
-              <PortalIco n="inbox" s={28} c="#3a3a5a"/>
+        {!loading && solic.length===0 && (
+          <div style={{ textAlign:"center", padding:"60px 20px" }}>
+            <div style={{ width:64, height:64, borderRadius:18, background:"#f3f4f6", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
             </div>
-            <div style={{ color:"#5a5a7a", fontSize:16, fontWeight:600, marginBottom:6 }}>Nenhuma solicitação ainda</div>
-            <div style={{ fontSize:13, color:"#3a3a5a", marginBottom:20 }}>Clique em "+ Nova solicitação" para enviar seu primeiro pedido.</div>
+            <div style={{ color:"#374151", fontSize:16, fontWeight:600, marginBottom:6 }}>Nenhuma solicitação ainda</div>
+            <div style={{ color:"#9ca3af", fontSize:13 }}>Clique em "+ Nova solicitação" para enviar seu pedido.</div>
           </div>
         )}
 
         {/* ── LISTA ── */}
-        {!loading && solic.length > 0 && (
+        {!loading && solic.length>0 && (
           <div>
-            <div style={{ color:"#3a3a5a", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:14 }}>Suas solicitações · {solic.length}</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-              {solic.map((s, idx) => {
-                const cfg = STATUS_CFG[s.status] || STATUS_CFG.pendente;
-                const isAprovacao = s.status === "aprovacao";
-                const isFinalizado = s.status === "finalizado";
-                const acaoAtual = acao[s.id];
+            <div style={{ color:"#9ca3af", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:14 }}>Suas solicitações · {solic.length}</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              {solic.map((s,idx)=>{
+                const cfg = ST[s.status]||ST.pendente;
+                const isAprov = s.status==="aprovacao";
+                const isDone  = s.status==="finalizado";
+                const curStep = cfg.step;
 
                 return (
-                  <div key={s.id} style={{
-                    background: card,
-                    border: `1px solid ${isAprovacao ? "#f59e0b50" : isFinalizado ? "#10b98130" : border}`,
-                    borderRadius:18,
-                    overflow:"hidden",
-                    animation:`fadeUp ${0.1 + idx*0.05}s ease`,
-                    boxShadow: isAprovacao ? "0 0 0 1px #f59e0b20, 0 8px 32px #f59e0b08" : "none",
-                  }}>
+                  <div key={s.id} style={{ ...S.card, border:`1.5px solid ${isAprov?"#fcd34d":isDone?"#a7f3d0":"#f0f0f6"}`, animation:`fadeUp ${0.1+idx*0.05}s ease` }}>
+                    {/* Top color bar */}
+                    <div style={{ height:4, background:`linear-gradient(90deg,${cfg.color},${cfg.color}60)` }}/>
 
-                    {/* Barra de status top */}
-                    <div style={{ height:3, background:`linear-gradient(90deg,${cfg.color},${cfg.color}60)`, borderRadius:"18px 18px 0 0" }}/>
-
-                    {/* Corpo do card */}
                     <div style={{ padding:"20px 22px" }}>
-
-                      {/* Título + Status badge */}
+                      {/* Title + badge */}
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:14 }}>
                         <div>
-                          <div style={{ color:"#e8e6f0", fontWeight:700, fontSize:17, fontFamily:"'Syne',sans-serif", lineHeight:1.2, marginBottom:5 }}>
-                            {s.tipo || "Solicitação"}
-                          </div>
-                          <div style={{ color:"#4a4a6a", fontSize:12 }}>
-                            Enviado em {fmtDate(s.created_at)}
-                          </div>
+                          <div style={{ color:"#111827", fontWeight:800, fontSize:18, marginBottom:4 }}>{s.tipo||"Solicitação"}</div>
+                          <div style={{ color:"#9ca3af", fontSize:12 }}>Enviado em {fmtD(s.created_at)}</div>
                         </div>
-                        <div style={{ display:"flex", alignItems:"center", gap:6, background:cfg.bg, border:`1px solid ${cfg.color}30`, borderRadius:20, padding:"6px 12px", flexShrink:0, whiteSpace:"nowrap" }}>
-                          <PortalIco n={cfg.icon} s={13} c={cfg.color}/>
-                          <span style={{ color:cfg.color, fontSize:12, fontWeight:700 }}>{cfg.label}</span>
-                        </div>
+                        <span style={S.pill(cfg)}>{cfg.label}</span>
                       </div>
 
-                      {/* Barra de progresso por etapas */}
-                      {s.status !== "cancelado" && (
+                      {/* Progress steps */}
+                      {s.status!=="cancelado" && (
                         <div style={{ marginBottom:16 }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:0 }}>
-                            {STEPS.map((step, i) => {
-                              const done = cfg.step > i || isFinalizado;
-                              const active = cfg.step === i && !isFinalizado;
+                          <div style={{ display:"flex", alignItems:"center" }}>
+                            {STEPS.map((step,i)=>{
+                              const done   = curStep>i||isDone;
+                              const active = curStep===i&&!isDone;
                               return (
                                 <React.Fragment key={i}>
-                                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, flex:"0 0 auto" }}>
-                                    <div style={{ width:28, height:28, borderRadius:"50%", background: done ? `linear-gradient(135deg,${cfg.color}cc,${cfg.color})` : active ? `${cfg.color}20` : "#1a1a2e", border: `2px solid ${done||active ? cfg.color : "#252538"}`, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.3s", boxShadow: active ? `0 0 10px ${cfg.color}40` : "none" }}>
-                                      <PortalIco n={step.icon} s={12} c={ done ? "#fff" : active ? cfg.color : "#3a3a5a" }/>
+                                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, flexShrink:0 }}>
+                                    <div style={{ width:28, height:28, borderRadius:"50%", background:done?cfg.color:active?cfg.bg:"#f3f4f6", border:`2px solid ${done||active?cfg.color:"#e5e7eb"}`, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.3s" }}>
+                                      {done
+                                        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                        : <div style={{ width:7, height:7, borderRadius:"50%", background:active?cfg.color:"#d1d5db" }}/>
+                                      }
                                     </div>
-                                    <span style={{ color: done||active ? cfg.color : "#3a3a5a", fontSize:9, fontWeight: active ? 700 : 500, whiteSpace:"nowrap" }}>{step.label}</span>
+                                    <span style={{ color:done||active?cfg.color:"#9ca3af", fontSize:9, fontWeight:active?700:500, whiteSpace:"nowrap" }}>{step}</span>
                                   </div>
-                                  {i < STEPS.length-1 && (
-                                    <div style={{ flex:1, height:2, background: done ? `linear-gradient(90deg,${cfg.color},${cfg.color}40)` : "#1a1a2e", marginBottom:14, transition:"all 0.3s" }}/>
-                                  )}
+                                  {i<STEPS.length-1&&<div style={{ flex:1, height:2, background:done?cfg.color:"#e5e7eb", marginBottom:14, transition:"background 0.3s" }}/>}
                                 </React.Fragment>
                               );
                             })}
                           </div>
-                          <div style={{ color:"#4a4a6a", fontSize:12, marginTop:8 }}>{cfg.desc}</div>
                         </div>
                       )}
 
                       {/* Descrição */}
                       {s.descricao && (
-                        <div style={{ background:"#0a0a18", border:`1px solid ${border}`, borderRadius:10, padding:"12px 16px", marginBottom:12 }}>
-                          <div style={{ color:"#8a8aaa", fontSize:13, lineHeight:1.7 }}>{s.descricao}</div>
+                        <div style={{ background:"#f9fafb", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+                          <div style={{ color:"#6b7280", fontSize:13, lineHeight:1.7 }}>{s.descricao}</div>
+                        </div>
+                      )}
+
+                      {/* Observações do cliente */}
+                      {s.observacoes && (
+                        <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, padding:"10px 14px", marginBottom:10 }}>
+                          <div style={{ color:"#15803d", fontSize:11, fontWeight:700, marginBottom:4 }}>💬 Suas observações</div>
+                          <div style={{ color:"#374151", fontSize:13, lineHeight:1.6 }}>{s.observacoes}</div>
                         </div>
                       )}
 
                       {/* Prazo */}
                       {s.prazo && (
-                        <div style={{ display:"inline-flex", alignItems:"center", gap:7, background:"#1a1a2e", borderRadius:8, padding:"6px 12px", marginBottom:12 }}>
-                          <PortalIco n="calendar" s={13} c="#6366f1"/>
-                          <span style={{ color:"#8a8aaa", fontSize:12 }}>Prazo solicitado:</span>
-                          <span style={{ color:"#c4c4e0", fontSize:12, fontWeight:600 }}>{fmtDate(s.prazo)}</span>
-                        </div>
-                      )}
-
-                      {/* Referências */}
-                      {s.referencias && (
-                        <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:12 }}>
-                          <PortalIco n="link" s={13} c="#4a4a6a"/>
-                          <span style={{ color:"#5a5a7a", fontSize:12, lineHeight:1.6 }}>{s.referencias}</span>
+                        <div style={{ display:"inline-flex", alignItems:"center", gap:7, background:"#f3f4f6", borderRadius:8, padding:"5px 12px", marginBottom:10 }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          <span style={{ color:"#6b7280", fontSize:12 }}>Prazo:</span>
+                          <span style={{ color:"#374151", fontSize:12, fontWeight:600 }}>{fmtD(s.prazo)}</span>
                         </div>
                       )}
 
                       {/* Mensagem do designer */}
                       {s.resposta_designer && !s.resposta_designer.startsWith("[Ajuste") && (
-                        <div style={{ background:"#6366f10a", border:"1px solid #6366f120", borderRadius:12, padding:"12px 16px", marginBottom:14 }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
-                            <PortalIco n="message" s={13} c="#818cf8"/>
-                            <span style={{ color:"#818cf8", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em" }}>Mensagem do designer</span>
+                        <div style={{ background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:12, padding:"14px 16px", marginBottom:14 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:8 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            <span style={{ color:"#7c3aed", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em" }}>Mensagem do designer</span>
                           </div>
-                          <div style={{ color:"#c4c4e0", fontSize:13, lineHeight:1.7 }}>{s.resposta_designer}</div>
+                          <div style={{ color:"#374151", fontSize:13, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{s.resposta_designer}</div>
                         </div>
                       )}
 
                       {/* ── APROVAÇÃO ── */}
-                      {isAprovacao && !acaoAtual && (
-                        <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${border}` }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
-                            <div style={{ width:32, height:32, borderRadius:9, background:"#f59e0b18", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                              <PortalIco n="thumbsup" s={15} c="#f59e0b"/>
+                      {isAprov && !acao[s.id] && (
+                        <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #f0f0f6" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+                            <div style={{ width:34, height:34, borderRadius:9, background:"#fffbeb", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
                             </div>
                             <div>
-                              <div style={{ color:"#f59e0b", fontSize:14, fontWeight:700 }}>O que você acha?</div>
-                              <div style={{ color:"#f59e0b70", fontSize:11 }}>Revise o projeto e nos dê seu retorno</div>
+                              <div style={{ color:"#111827", fontSize:14, fontWeight:700 }}>O que você acha?</div>
+                              <div style={{ color:"#6b7280", fontSize:12 }}>Revise o projeto e nos dê seu retorno</div>
                             </div>
                           </div>
                           <div style={{ display:"flex", gap:10 }}>
                             <button onClick={()=>aprovar(s.id)} disabled={sending[s.id]}
-                              style={{ flex:1, background: sending[s.id] ? "#1a2e1a" : "linear-gradient(135deg,#059669,#10b981)", border:"none", borderRadius:12, padding:"13px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 16px #10b98130", transition:"all 0.2s" }}>
-                              <PortalIco n="check" s={16} c="#fff"/> {sending[s.id] ? "Aprovando..." : "Aprovar projeto"}
+                              style={{ flex:1, background:"linear-gradient(135deg,#059669,#10b981)", border:"none", borderRadius:11, padding:"13px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 14px #10b98125" }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                              {sending[s.id]?"Aprovando...":"Aprovar projeto"}
                             </button>
-                            <button onClick={()=>setAcao(a=>({...a,[s.id]:"ajustando"}))}
-                              style={{ flex:1, background:"#ef444412", border:"1px solid #ef444430", borderRadius:12, padding:"13px", color:"#ef4444", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8, transition:"all 0.2s" }}>
-                              <PortalIco n="refresh" s={16} c="#ef4444"/> Solicitar ajustes
+                            <button onClick={()=>setAcao(a=>({...a,[s.id]:"aj"}))}
+                              style={{ flex:1, background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:11, padding:"13px", color:"#dc2626", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                              Solicitar ajustes
                             </button>
                           </div>
                         </div>
                       )}
 
-                      {/* Form de ajuste */}
-                      {isAprovacao && acaoAtual === "ajustando" && (
-                        <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${border}`, animation:"fadeUp 0.2s ease" }}>
-                          <label style={{ display:"block", color:"#e8e6f0", fontSize:14, fontWeight:600, marginBottom:10 }}>O que precisa ser ajustado?</label>
+                      {/* Form ajuste */}
+                      {isAprov && acao[s.id]==="aj" && (
+                        <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #f0f0f6", animation:"fadeUp 0.2s ease" }}>
+                          <label style={{ display:"block", color:"#374151", fontSize:14, fontWeight:600, marginBottom:10 }}>O que precisa ser ajustado?</label>
                           <textarea value={ajusteText[s.id]||""} onChange={e=>setAjusteText(t=>({...t,[s.id]:e.target.value}))}
-                            placeholder="Descreva o que gostaria de mudar com o máximo de detalhes possível..."
+                            placeholder="Descreva o que gostaria de mudar em detalhes..."
                             rows={4}
-                            style={{ width:"100%", background:"#0a0a18", border:"1.5px solid #252538", borderRadius:10, padding:"12px 14px", color:"#e8e6f0", fontSize:13, outline:"none", fontFamily:"'DM Sans',sans-serif", resize:"vertical", lineHeight:1.7, boxSizing:"border-box", marginBottom:12, transition:"border-color 0.2s" }}
-                            onFocus={e=>e.target.style.borderColor="#a78bfa"}
-                            onBlur={e=>e.target.style.borderColor="#252538"}
+                            style={{ width:"100%", background:"#fafafa", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"12px 14px", color:"#111827", fontSize:13, outline:"none", fontFamily:"inherit", resize:"vertical", lineHeight:1.7, boxSizing:"border-box", marginBottom:12 }}
+                            onFocus={e=>e.target.style.borderColor="#7c3aed"} onBlur={e=>e.target.style.borderColor="#e5e7eb"}
                           />
                           <div style={{ display:"flex", gap:10 }}>
-                            <button onClick={()=>pedirAjuste(s.id)} disabled={!ajusteText[s.id]?.trim() || sending[s.id]==="ajuste"}
-                              style={{ flex:1, background: !ajusteText[s.id]?.trim() ? "#1a1a2e" : "linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"12px", color: !ajusteText[s.id]?.trim() ? "#3a3a5a" : "#fff", fontSize:14, fontWeight:700, cursor: !ajusteText[s.id]?.trim() ? "not-allowed" : "pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:7, transition:"all 0.2s" }}>
-                              <PortalIco n="send" s={15} c={!ajusteText[s.id]?.trim() ? "#3a3a5a" : "#fff"}/>
-                              {sending[s.id]==="ajuste" ? "Enviando..." : "Enviar feedback"}
+                            <button onClick={()=>pedirAjuste(s.id)} disabled={!ajusteText[s.id]?.trim()||sending[s.id]==="aj"}
+                              style={{ flex:1, background:!ajusteText[s.id]?.trim()?"#f3f4f6":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"11px", color:!ajusteText[s.id]?.trim()?"#9ca3af":"#fff", fontSize:14, fontWeight:700, cursor:!ajusteText[s.id]?.trim()?"not-allowed":"pointer", fontFamily:"inherit" }}>
+                              {sending[s.id]==="aj"?"Enviando...":"Enviar feedback"}
                             </button>
                             <button onClick={()=>setAcao(a=>({...a,[s.id]:null}))}
-                              style={{ background:"none", border:`1px solid ${border}`, borderRadius:10, padding:"12px 18px", color:"#4a4a6a", fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>
+                              style={{ background:"none", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"11px 18px", color:"#6b7280", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
                               Voltar
                             </button>
                           </div>
                         </div>
                       )}
 
-                      {/* Finalizado */}
-                      {isFinalizado && (
-                        <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:10, background:"#10b98110", border:"1px solid #10b98130", borderRadius:10, padding:"11px 16px" }}>
-                          <PortalIco n="check" s={16} c="#10b981"/>
-                          <span style={{ color:"#10b981", fontSize:13, fontWeight:600 }}>Projeto aprovado e concluído!</span>
+                      {/* Concluído */}
+                      {isDone && (
+                        <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:10, background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, padding:"11px 16px" }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          <span style={{ color:"#059669", fontSize:13, fontWeight:600 }}>Projeto aprovado e concluído!</span>
                         </div>
                       )}
                     </div>
@@ -3242,9 +3200,7 @@ function PortalPublicoPage() {
             </div>
           </div>
         )}
-
-        {/* Footer */}
-        <div style={{ textAlign:"center", color:"#1e1e35", fontSize:11, marginTop:40, paddingBottom:20 }}>Powered by FluxioHUB</div>
+        <div style={{ textAlign:"center", color:"#e5e7eb", fontSize:11, marginTop:40, paddingBottom:20 }}>Powered by FluxioHUB</div>
       </div>
     </div>
   );
@@ -3252,10 +3208,10 @@ function PortalPublicoPage() {
 
 // Form inline reutilizável para o portal
 function SolicitarFormInline({ clienteId, clienteNome, onEnviado }) {
-  const [form, setForm] = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
+  const [form, setForm]   = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(null);
-  const inp = (f) => ({ background: focused===f?"#13131f":"#0a0a18", border:`1.5px solid ${focused===f?"#a78bfa":"#1e1e35"}`, borderRadius:9, padding:"10px 13px", color:"#e8e6f0", fontSize:13, width:"100%", outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box", transition:"all 0.2s" });
+  const inp = (f) => ({ background:focused===f?"#fff":"#fafafa", border:`1.5px solid ${focused===f?"#7c3aed":"#e5e7eb"}`, borderRadius:9, padding:"10px 13px", color:"#111827", fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", transition:"all 0.2s" });
   const ta = (f, rows=3) => ({...inp(f), resize:"vertical", lineHeight:1.6, minHeight:rows*22+20});
 
   async function enviar() {
@@ -3271,32 +3227,37 @@ function SolicitarFormInline({ clienteId, clienteNome, onEnviado }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div>
-        <label style={{ display:"block", color:"#5a5a7a", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Tipo de projeto</label>
-        <input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} onFocus={()=>setFocused("tipo")} onBlur={()=>setFocused(null)} placeholder="Ex: Post Instagram, Logo, Banner..." style={inp("tipo")}/>
+        <label style={{ display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Tipo</label>
+        <input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} onFocus={()=>setFocused("tipo")} onBlur={()=>setFocused(null)} placeholder="Ex: Post, Logo, Banner..." style={inp("tipo")}/>
       </div>
       <div>
-        <label style={{ display:"flex", alignItems:"center", gap:6, color:"#5a5a7a", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-          Descrição <span style={{ background:"#a78bfa20", color:"#a78bfa", fontSize:10, padding:"1px 6px", borderRadius:20, textTransform:"none", letterSpacing:0 }}>obrigatório</span>
+        <label style={{ display:"flex", alignItems:"center", gap:6, color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+          Descrição <span style={{ background:"#f3eeff", color:"#7c3aed", fontSize:10, padding:"1px 6px", borderRadius:20, textTransform:"none", letterSpacing:0 }}>obrigatório</span>
         </label>
-        <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} onFocus={()=>setFocused("descricao")} onBlur={()=>setFocused(null)} placeholder="O que precisa ser criado?" style={ta("descricao", 4)}/>
+        <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} onFocus={()=>setFocused("desc")} onBlur={()=>setFocused(null)} placeholder="O que precisa ser criado?" style={ta("desc",4)}/>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
         <div>
-          <label style={{ display:"block", color:"#5a5a7a", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Prazo</label>
+          <label style={{ display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Prazo</label>
           <input type="date" value={form.prazo} onChange={e=>setForm(f=>({...f,prazo:e.target.value}))} onFocus={()=>setFocused("prazo")} onBlur={()=>setFocused(null)} style={inp("prazo")}/>
         </div>
         <div>
-          <label style={{ display:"block", color:"#5a5a7a", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Referências</label>
-          <input value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} onFocus={()=>setFocused("referencias")} onBlur={()=>setFocused(null)} placeholder="Links..." style={inp("referencias")}/>
+          <label style={{ display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Referências</label>
+          <input value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} onFocus={()=>setFocused("ref")} onBlur={()=>setFocused(null)} placeholder="Links..." style={inp("ref")}/>
         </div>
       </div>
+      <div>
+        <label style={{ display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Observações</label>
+        <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))} onFocus={()=>setFocused("obs")} onBlur={()=>setFocused(null)} placeholder="Algum detalhe extra..." style={ta("obs",2)}/>
+      </div>
       <button onClick={enviar} disabled={!form.descricao.trim()||loading}
-        style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#1a1a2e":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:11, padding:"13px", color:(!form.descricao.trim()||loading)?"#3a3a5a":"#fff", fontSize:14, fontWeight:700, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8, transition:"all 0.2s", boxShadow:(!form.descricao.trim()||loading)?"none":"0 4px 16px #6d28d940" }}>
-        {loading ? "Enviando..." : <><PortalIco n="send" s={15} c="#fff"/>Enviar</>}
+        style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#f3f4f6":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"12px", color:(!form.descricao.trim()||loading)?"#9ca3af":"#fff", fontSize:14, fontWeight:700, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:(!form.descricao.trim()||loading)?"none":"0 4px 14px #6d28d925" }}>
+        {loading?"Enviando...":"📤 Enviar"}
       </button>
     </div>
   );
 }
+
 
 function PortalCliente({ leads, setDemandas }) {
   const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
