@@ -2856,101 +2856,53 @@ export default function App() {
           </button>
         </div>
       </div>
+      
+      {/* Main content */}
+      <div className="main-content" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+        <div style={{ height:54, display:"flex", alignItems:"center", padding:"0 24px", borderBottom:`1px solid ${C.border}`, gap:14, flexShrink:0 }}>
+          <button onClick={()=>setSideOpen(s=>!s)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="menu" s={20}/></button>
+          <span style={{ color:C.muted, fontSize:13 }}>{nav.find(n=>n.id===view)?.label||""}</span>
+          {notifToast&&(
+            <div onClick={()=>{setView("portal");setNotifToast(null);}} style={{ position:"fixed", bottom:24, right:24, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:14, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", cursor:"pointer", zIndex:9999, animation:"slideUp 0.3s ease" }}>
+              <span style={{ fontSize:22 }}>🔔</span>
+              <div>
+                <div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>{notifToast}</div>
+                <div style={{ color:"rgba(255,255,255,0.7)", fontSize:11 }}>Clique para ver</div>
+              </div>
+              <button onClick={e=>{e.stopPropagation();setNotifToast(null);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:6, width:22, height:22, color:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+            </div>
+          )}
+          <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={timer.toggle} style={{ display:"flex", alignItems:"center", gap:7, background:timer.running?`${C.teal}18`:C.card, border:`1px solid ${timer.running?C.teal:C.border}`, borderRadius:9, padding:"6px 13px", cursor:"pointer" }}>
+              <div style={{ width:7, height:7, borderRadius:"50%", background:timer.running?C.teal:C.muted, boxShadow:timer.running?`0 0 6px ${C.teal}`:""}}/>
+              <span style={{ color:timer.running?C.teal:C.muted, fontFamily:"monospace", fontSize:12, fontWeight:700 }}>{timer.fmt(timer.seconds)}</span>
+            </button>
+          </div>
+        </div>
 
-      {/* Main Content */}
-      <div style={{ flex:1, overflowY:"auto", background:C.bg }}>
-        {view === "dashboard" && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas}/>}
-        {view === "leads" && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
-        {/* CORREÇÃO 1: props portfolio, tasks, setTasks repassadas abaixo! */}
-        {view === "clientes" && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas} portfolio
+        <div style={{ flex:1, overflowY:"auto" }}>
+          {view==="dashboard" && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={setFocusMode}/>}
+          {view==="prospeccao" && <Prospeccao/>}
+          {view==="leads" && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
+          
+          {/* AQUI ESTÁ A CORREÇÃO QUE EVITA O ERRO "FILTER OF UNDEFINED" */}
+          {view==="clientes" && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas} portfolio={portfolio} tasks={tasks} setTasks={setTasks} />}
+          
+          {view==="kanban" && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
+          {view==="agenda" && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
+          {view==="timer" && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
+          {view==="finance" && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory} despesas={despesas} setDespesas={setDespesas}/>}
+          {view==="portfolio" && <Portfolio items={portfolio} setItems={setPortfolio}/>}
+          {view==="notes" && <Notes notes={notes} setNotes={setNotes}/>}
+          {view==="relatorio" && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
+          {view==="formulario" && <FormularioPedido leads={leads}/>}
+          {view==="portal" && <PortalCliente leads={leads} setDemandas={setDemandas}/>}
+        </div>
+      </div>
 
-                                  
-{/* Main content */}
+      <SettingsModal open={settingsOpen} onClose={()=>setSettingsOpen(false)} theme={theme} setTheme={setTheme} userName={userName} setUserName={setUserName} userRole={userRole} setUserRole={setUserRole} userAvatar={userAvatar} setUserAvatar={setUserAvatar}/>
+    </div>
+    </ErrorBoundary>
+  );
+}                            
 
-<div className="main-content" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
-
-<div style={{ height:54, display:"flex", alignItems:"center", padding:"0 24px", borderBottom:`1px solid ${C.border}`, gap:14, flexShrink:0 }}>
-
-<button onClick={()=>setSideOpen(s=>!s)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="menu" s={20}/></button>
-
-<span style={{ color:C.muted, fontSize:13 }}>{nav.find(n=>n.id===view)?.label||""}</span>
-
-{notifToast&&(
-
-<div onClick={()=>{setView("portal");setNotifToast(null);}} style={{ position:"fixed", bottom:24, right:24, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:14, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", cursor:"pointer", zIndex:9999, animation:"slideUp 0.3s ease" }}>
-
-<span style={{ fontSize:22 }}>🔔</span>
-
-<div>
-
-<div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>{notifToast}</div>
-
-<div style={{ color:"rgba(255,255,255,0.7)", fontSize:11 }}>Clique para ver</div>
-
-</div>
-
-<button onClick={e=>{e.stopPropagation();setNotifToast(null);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:6, width:22, height:22, color:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-
-</div>
-
-)}
-
-<div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12 }}>
-
-<button onClick={timer.toggle} style={{ display:"flex", alignItems:"center", gap:7, background:timer.running?`${C.teal}18`:C.card, border:`1px solid ${timer.running?C.teal:C.border}`, borderRadius:9, padding:"6px 13px", cursor:"pointer" }}>
-
-<div style={{ width:7, height:7, borderRadius:"50%", background:timer.running?C.teal:C.muted, boxShadow:timer.running?`0 0 6px ${C.teal}`:""}}/>
-
-<span style={{ color:timer.running?C.teal:C.muted, fontFamily:"monospace", fontSize:12, fontWeight:700 }}>{timer.fmt(timer.seconds)}</span>
-
-</button>
-
-</div>
-
-</div>
-
-
-
-<div style={{ flex:1, overflowY:"auto" }}>
-
-{view==="dashboard" && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={setFocusMode}/>}
-
-{view==="prospeccao" && <Prospeccao/>}
-
-{view==="leads" && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
-
-{view==="clientes" && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
-
-{view==="kanban" && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
-
-{view==="agenda" && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
-
-{view==="timer" && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
-
-{view==="finance" && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory} despesas={despesas} setDespesas={setDespesas}/>}
-
-{view==="portfolio" && <Portfolio items={portfolio} setItems={setPortfolio}/>}
-
-{view==="notes" && <Notes notes={notes} setNotes={setNotes}/>}
-
-{view==="relatorio" && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
-
-{view==="formulario" && <FormularioPedido leads={leads}/>}
-
-{view==="portal" && <PortalCliente leads={leads} setDemandas={setDemandas}/>}
-
-</div>
-
-</div>
-
-
-
-<SettingsModal open={settingsOpen} onClose={()=>setSettingsOpen(false)} theme={theme} setTheme={setTheme} userName={userName} setUserName={setUserName} userRole={userRole} setUserRole={setUserRole} userAvatar={userAvatar} setUserAvatar={setUserAvatar}/>
-
-</div>
-
-</ErrorBoundary>
-
-);
-
-}
