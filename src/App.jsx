@@ -95,21 +95,40 @@ const NOW_MO    = _now.getMonth(); // index 0-based
 
 // ─── Initial Data ─────────────────────────────────────────────────────────────
 const CATEGORIA = {
-  lead:         { label:"Lead",         color:"#facc15", icon:"⚡" },
-  cliente_fixo: { label:"Cliente Ativo", color:"#2dd4bf", icon:"⭐" },
+  lead:         { label:"Lead",          color:C.yellow, icon:"⚡" },
+  cliente_fixo: { label:"Cliente Ativo",  color:C.teal,   icon:"⭐" },
 };
+
+const STATUS_DEMANDA = {
+  triagem:     { label:"Triagem",      color:"#94a3b8", icon:"📥" },
+  em_criacao:  { label:"Em Criação",   color:"#a78bfa", icon:"✏️"  },
+  revisao:     { label:"Revisão",      color:"#38bdf8", icon:"🔍" },
+  aprovacao:   { label:"Aprovação",    color:"#fb923c", icon:"👀" },
+  finalizado:  { label:"Finalizado",   color:"#4ade80", icon:"✅" },
+};
+const KANBAN_COLS = ["triagem","em_criacao","revisao","aprovacao","finalizado"];
+
+const initLeads = [];
+
+const initTasks = [];
+
+const initPortfolio = [
+  { id:1, title:"Identidade Visual — Pixel Studio", url:"https://behance.net", tag:"Branding", year:"2025", month:"2025-11", value:4500,  cover:"🎨", description:"Rebranding completo com sistema de identidade visual." },
+  { id:2, title:"UI Kit — Tech Venture App",        url:"https://figma.com",   tag:"UI/UX",    year:"2025", month:"2025-09", value:8500,  cover:"📱", description:"Design system com mais de 200 componentes." },
+  { id:3, title:"Website — Brand Co",               url:"https://dribbble.com",tag:"Web",      year:"2024", month:"2024-06", value:6000,  cover:"🌐", description:"Landing page institucional e campanha digital." },
+];
+
+const initTimerHistory = [];
+const initDemandas = [];
+
 const STATUS = {
-  novo:       { label:"Novo",       color:"#2dd4bf" },
-  negociando: { label:"Negociando", color:"#facc15" },
-  proposta:   { label:"Proposta",   color:"#a78bfa" },
-  fechado:    { label:"Fechado",    color:"#4ade80" },
-  perdido:    { label:"Perdido",    color:"#f87171" },
+  novo:       { label:"Novo",       color:C.teal   },
+  negociando: { label:"Negociando", color:C.yellow },
+  proposta:   { label:"Proposta",   color:C.accent },
+  fechado:    { label:"Fechado",    color:C.green  },
+  perdido:    { label:"Perdido",    color:C.red    },
 };
-const PRIORITY = {
-  alta:  { dot:"#f87171" },
-  media: { dot:"#facc15" },
-  baixa: { dot:"#2dd4bf" },
-};
+const PRIORITY = { alta:{ dot:C.red }, media:{ dot:C.yellow }, baixa:{ dot:C.teal } };
 const TYPE = { reuniao:{icon:"🤝",label:"Reunião"}, entrega:{icon:"📦",label:"Entrega"}, tarefa:{icon:"✅",label:"Tarefa"} };
 
 // ─── Icons ─────────────────────────────────────────────────────────────────────
@@ -286,7 +305,8 @@ function MonthPicker({ value, onChange, label }) {
 // DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
 // ─── Card de solicitações no Dashboard ────────────────────────────────────────
-function SolicDashCard({ setView }) {
+function SolicDashCard({ setView, colors }) {
+  const C = colors;
   const [solic, setSolic] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -1306,7 +1326,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
     { nome:"Expert",        min:5000,  max:15000, icon:"💎", cor:C.teal    },
     { nome:"Lenda",         min:15000, max:99999, icon:"🏆", cor:C.orange  },
   ];
-  const nivel = [...niveis].reverse().find(n => xp >= n.min) || niveis[0];
+  const nivel = niveis.findLast(n => xp >= n.min) || niveis[0];
   const nextNivel = niveis[niveis.indexOf(nivel)+1];
   const xpPct = nextNivel ? Math.round((xp - nivel.min) / (nextNivel.min - nivel.min) * 100) : 100;
 
@@ -3814,7 +3834,7 @@ export default function App() {
           {view==="dashboard"   && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={setFocusMode}/>}
           {view==="prospeccao"  && <Prospeccao/>}
           {view==="leads"       && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
-          {view==="clientes" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
+          {view==="clientes"    && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="kanban"      && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
           {view==="agenda"      && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="timer"       && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
