@@ -1326,7 +1326,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
     { nome:"Expert",        min:5000,  max:15000, icon:"💎", cor:C.teal    },
     { nome:"Lenda",         min:15000, max:99999, icon:"🏆", cor:C.orange  },
   ];
-  const nivel = niveis.findLast(n => xp >= n.min) || niveis[0];
+  const nivel = [...niveis].reverse().find(n => xp >= n.min) || niveis[0];
   const nextNivel = niveis[niveis.indexOf(nivel)+1];
   const xpPct = nextNivel ? Math.round((xp - nivel.min) / (nextNivel.min - nivel.min) * 100) : 100;
 
