@@ -286,8 +286,7 @@ function MonthPicker({ value, onChange, label }) {
 // DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
 // ─── Card de solicitações no Dashboard ────────────────────────────────────────
-function SolicDashCard({ setView, colors }) {
-  const C = colors;
+function SolicDashCard({ setView }) {
   const [solic, setSolic] = useState([]);
   const [loading, setLoading] = useState(true);
 
