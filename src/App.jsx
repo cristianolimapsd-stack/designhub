@@ -3814,7 +3814,7 @@ export default function App() {
           {view==="dashboard"   && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={setFocusMode}/>}
           {view==="prospeccao"  && <Prospeccao/>}
           {view==="leads"       && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
-          {view==="clientes"    && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
+          {view==="clientes" && <ClientesFixos leads={leads} setLeads={setLeads} portfolio={portfolio} demandas={demandas} setDemandas={setDemandas} tasks={tasks} setTasks={setTasks}/>}
           {view==="kanban"      && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
           {view==="agenda"      && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
           {view==="timer"       && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
