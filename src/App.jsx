@@ -2810,99 +2810,93 @@ export default function App() {
   if (params.has("solicitar")) return <SolicitarPage />;
   if (params.has("pedido")) return <AprovarPage />;
 
-  return (
-    <div style={{ display:"flex", height:"100vh", background:C.bg, color:C.text, fontFamily:"'DM Sans', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap');
-        * { box-sizing:border-box; margin:0; padding:0; }
-        *::-webkit-scrollbar { width:6px; height:6px; }
-        *::-webkit-scrollbar-track { background:transparent; }
-        *::-webkit-scrollbar-thumb { background:${C.border}; border-radius:10px; }
-        *::-webkit-scrollbar-thumb:hover { background:${C.muted}; }
-        input[type=date]::-webkit-calendar-picker-indicator, input[type=time]::-webkit-calendar-picker-indicator, input[type=month]::-webkit-calendar-picker-indicator { filter:${theme==="dark"?"invert(1)":"invert(0)"}; opacity:0.5; cursor:pointer; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-      `}</style>
-      
-      {/* Sidebar */}
-      <div style={{ width:80, background:C.surface, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", alignItems:"center", padding:"24px 0", zIndex:100 }}>
-        <div style={{ width:44, height:44, borderRadius:12, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:32, boxShadow:`0 8px 24px ${C.accentGlow}50` }}>
-          <span style={{ color:"#fff", fontWeight:900, fontSize:20, fontFamily:"'Syne',sans-serif" }}>F</span>
-        </div>
+ return (
+    <ErrorBoundary>
+      <div style={{ display:"flex", height:"100vh", background:C.bg, color:C.text, fontFamily:"'DM Sans', sans-serif" }}>
         
-        <div style={{ display:"flex", flexDirection:"column", gap:16, flex:1 }}>
-          {[
-            { id:"dashboard", icon:"dashboard", label:"Dashboard" },
-            { id:"clientes", icon:"star", label:"Clientes Ativos" },
-            { id:"kanban", icon:"kanban", label:"Demandas" },
-            { id:"leads", icon:"leads", label:"CRM (Leads)" },
-            { id:"prospeccao", icon:"send", label:"Prospecção" },
-            { id:"agenda", icon:"agenda", label:"Agenda" },
-            { id:"finance", icon:"finance", label:"Financeiro" },
-            { id:"portfolio", icon:"portfolio", label:"Portfólio" },
-            { id:"notes", icon:"note", label:"Notas" }
-          ].map(item => (
-            <button key={item.id} onClick={() => setView(item.id)} title={item.label}
-              style={{ width:44, height:44, borderRadius:12, border:"none", background:view===item.id?`${C.accent}20`:"transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s" }}
-              onMouseEnter={e => { if(view!==item.id) e.currentTarget.style.background=C.cardHover; }}
-              onMouseLeave={e => { if(view!==item.id) e.currentTarget.style.background="transparent"; }}>
-              <Ico n={item.icon} s={20}/>
-            </button>
-          ))}
-        </div>
+        {/* Sidebar */}
+        <div style={{ width:80, background:C.surface, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", alignItems:"center", padding:"24px 0", zIndex:100 }}>
+          <div style={{ width:44, height:44, borderRadius:12, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:32, boxShadow:`0 8px 24px ${C.accentGlow}50` }}>
+            <span style={{ color:"#fff", fontWeight:900, fontSize:20, fontFamily:"'Syne',sans-serif" }}>F</span>
+          </div>
+          
+          <div style={{ display:"flex", flexDirection:"column", gap:16, flex:1 }}>
+            {[
+              { id:"dashboard", icon:"dashboard", label:"Dashboard" },
+              { id:"clientes", icon:"star", label:"Clientes Ativos" },
+              { id:"kanban", icon:"kanban", label:"Demandas" },
+              { id:"leads", icon:"leads", label:"CRM (Leads)" },
+              { id:"prospeccao", icon:"send", label:"Prospecção" },
+              { id:"agenda", icon:"agenda", label:"Agenda" },
+              { id:"finance", icon:"finance", label:"Financeiro" },
+              { id:"portfolio", icon:"portfolio", label:"Portfólio" },
+              { id:"notes", icon:"note", label:"Notas" }
+            ].map(item => (
+              <button key={item.id} onClick={() => setView(item.id)} title={item.label}
+                style={{ width:44, height:44, borderRadius:12, border:"none", background:view===item.id?`${C.accent}20`:"transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s" }}
+                onMouseEnter={e => { if(view!==item.id) e.currentTarget.style.background=C.cardHover; }}
+                onMouseLeave={e => { if(view!==item.id) e.currentTarget.style.background="transparent"; }}>
+                <Ico n={item.icon} s={20}/>
+              </button>
+            ))}
+          </div>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:16, marginTop:"auto" }}>
-          <button onClick={() => setSettingsOpen(true)} style={{ width:40, height:40, borderRadius:"50%", border:`2px solid ${C.border}`, background:userAvatar?`url(${userAvatar}) center/cover`:`linear-gradient(135deg,${C.accentGlow},${C.teal})`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, overflow:"hidden" }}>
-            {!userAvatar && (userName?.charAt(0)?.toUpperCase() || "U")}
-          </button>
-        </div>
-      </div>
-      
-      {/* Main content */}
-      <div className="main-content" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
-        <div style={{ height:54, display:"flex", alignItems:"center", padding:"0 24px", borderBottom:`1px solid ${C.border}`, gap:14, flexShrink:0 }}>
-          <button onClick={()=>setSideOpen(s=>!s)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="menu" s={20}/></button>
-          <span style={{ color:C.muted, fontSize:13 }}>{nav.find(n=>n.id===view)?.label||""}</span>
-          {notifToast&&(
-            <div onClick={()=>{setView("portal");setNotifToast(null);}} style={{ position:"fixed", bottom:24, right:24, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:14, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", cursor:"pointer", zIndex:9999, animation:"slideUp 0.3s ease" }}>
-              <span style={{ fontSize:22 }}>🔔</span>
-              <div>
-                <div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>{notifToast}</div>
-                <div style={{ color:"rgba(255,255,255,0.7)", fontSize:11 }}>Clique para ver</div>
-              </div>
-              <button onClick={e=>{e.stopPropagation();setNotifToast(null);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:6, width:22, height:22, color:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-            </div>
-          )}
-          <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12 }}>
-            <button onClick={timer.toggle} style={{ display:"flex", alignItems:"center", gap:7, background:timer.running?`${C.teal}18`:C.card, border:`1px solid ${timer.running?C.teal:C.border}`, borderRadius:9, padding:"6px 13px", cursor:"pointer" }}>
-              <div style={{ width:7, height:7, borderRadius:"50%", background:timer.running?C.teal:C.muted, boxShadow:timer.running?`0 0 6px ${C.teal}`:""}}/>
-              <span style={{ color:timer.running?C.teal:C.muted, fontFamily:"monospace", fontSize:12, fontWeight:700 }}>{timer.fmt(timer.seconds)}</span>
+          <div style={{ display:"flex", flexDirection:"column", gap:16, marginTop:"auto" }}>
+            <button onClick={() => setSettingsOpen(true)} style={{ width:40, height:40, borderRadius:"50%", border:`2px solid ${C.border}`, background:userAvatar?`url(${userAvatar}) center/cover`:`linear-gradient(135deg,${C.accentGlow},${C.teal})`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, overflow:"hidden" }}>
+              {!userAvatar && (userName?.charAt(0)?.toUpperCase() || "U")}
             </button>
           </div>
         </div>
 
-        <div style={{ flex:1, overflowY:"auto" }}>
-          {view==="dashboard" && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={setFocusMode}/>}
-          {view==="prospeccao" && <Prospeccao/>}
-          {view==="leads" && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
-          
-          {/* AQUI ESTÁ A CORREÇÃO QUE EVITA O ERRO "FILTER OF UNDEFINED" */}
-          {view==="clientes" && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas} portfolio={portfolio} tasks={tasks} setTasks={setTasks} />}
-          
-          {view==="kanban" && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
-          {view==="agenda" && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
-          {view==="timer" && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
-          {view==="finance" && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory} despesas={despesas} setDespesas={setDespesas}/>}
-          {view==="portfolio" && <Portfolio items={portfolio} setItems={setPortfolio}/>}
-          {view==="notes" && <Notes notes={notes} setNotes={setNotes}/>}
-          {view==="relatorio" && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
-          {view==="formulario" && <FormularioPedido leads={leads}/>}
-          {view==="portal" && <PortalCliente leads={leads} setDemandas={setDemandas}/>}
-        </div>
-      </div>
+        {/* Main Content */}
+        <div className="main-content" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+          <div style={{ height:54, display:"flex", alignItems:"center", padding:"0 24px", borderBottom:`1px solid ${C.border}`, gap:14, flexShrink:0 }}>
+            
+            {/* Opcional: só chama setSideOpen se existir */}
+            <button onClick={()=>typeof setSideOpen === 'function' && setSideOpen(s=>!s)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="menu" s={20}/></button>
+            <span style={{ color:C.muted, fontSize:13 }}>{(typeof nav !== 'undefined' ? nav : []).find(n=>n.id===view)?.label||""}</span>
+            
+            {typeof notifToast !== 'undefined' && notifToast && (
+              <div onClick={()=>{setView("portal");if(typeof setNotifToast === 'function') setNotifToast(null);}} style={{ position:"fixed", bottom:24, right:24, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:14, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", cursor:"pointer", zIndex:9999, animation:"slideUp 0.3s ease" }}>
+                <span style={{ fontSize:22 }}>🔔</span>
+                <div>
+                  <div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>{notifToast}</div>
+                  <div style={{ color:"rgba(255,255,255,0.7)", fontSize:11 }}>Clique para ver</div>
+                </div>
+                <button onClick={e=>{e.stopPropagation();if(typeof setNotifToast === 'function') setNotifToast(null);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:6, width:22, height:22, color:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+              </div>
+            )}
+            
+            <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12 }}>
+              <button onClick={timer.toggle} style={{ display:"flex", alignItems:"center", gap:7, background:timer.running?`${C.teal}18`:C.card, border:`1px solid ${timer.running?C.teal:C.border}`, borderRadius:9, padding:"6px 13px", cursor:"pointer" }}>
+                <div style={{ width:7, height:7, borderRadius:"50%", background:timer.running?C.teal:C.muted, boxShadow:timer.running?`0 0 6px ${C.teal}`:""}}/>
+                <span style={{ color:timer.running?C.teal:C.muted, fontFamily:"monospace", fontSize:12, fontWeight:700 }}>{timer.fmt(timer.seconds)}</span>
+              </button>
+            </div>
+          </div>
 
-      <SettingsModal open={settingsOpen} onClose={()=>setSettingsOpen(false)} theme={theme} setTheme={setTheme} userName={userName} setUserName={setUserName} userRole={userRole} setUserRole={setUserRole} userAvatar={userAvatar} setUserAvatar={setUserAvatar}/>
-    </div>
+          <div style={{ flex:1, overflowY:"auto" }}>
+            {view==="dashboard" && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={typeof setFocusMode !== 'undefined' ? setFocusMode : undefined}/>}
+            {view==="prospeccao" && <Prospeccao/>}
+            {view==="leads" && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
+            
+            {/* CORREÇÃO DO FILTER APLICADA AQUI ABAIXO */}
+            {view==="clientes" && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas} portfolio={portfolio} tasks={tasks} setTasks={setTasks} />}
+            
+            {view==="kanban" && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
+            {view==="agenda" && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
+            {view==="timer" && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
+            {view==="finance" && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory} despesas={typeof despesas !== 'undefined' ? despesas : []} setDespesas={typeof setDespesas !== 'undefined' ? setDespesas : undefined}/>}
+            {view==="portfolio" && <Portfolio items={portfolio} setItems={setPortfolio}/>}
+            {view==="notes" && <Notes notes={notes} setNotes={setNotes}/>}
+            {view==="relatorio" && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
+            {view==="formulario" && <FormularioPedido leads={leads}/>}
+            {view==="portal" && typeof PortalCliente !== 'undefined' && <PortalCliente leads={leads} setDemandas={setDemandas}/>}
+          </div>
+        </div>
+
+        <SettingsModal open={settingsOpen} onClose={()=>setSettingsOpen(false)} theme={theme} setTheme={setTheme} userName={userName} setUserName={setUserName} userRole={userRole} setUserRole={setUserRole} userAvatar={userAvatar} setUserAvatar={setUserAvatar}/>
+      </div>
     </ErrorBoundary>
   );
-}                            
-
+}
