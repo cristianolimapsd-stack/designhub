@@ -3251,7 +3251,6 @@ function SolicitarFormInline({ clienteId, clienteNome, onEnviado }) {
   );
 }
 
-
 function PortalCliente({ leads, setDemandas }) {
   const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
   const [selCli, setSelCli] = useState("");
@@ -3290,6 +3289,98 @@ function PortalCliente({ leads, setDemandas }) {
     window.addEventListener("solic_changed", handler);
     return () => { clearInterval(interval); window.removeEventListener("solic_changed", handler); };
   }, [carregarSolic]);
+
+  function LinksDoCliente({ leads }) {
+  const clientes = (leads || []).filter(l => l.categoria === "cliente_fixo");
+  const [selCli, setSelCli] = useState("");
+  const sel = clientes.find(c => String(c.id) === String(selCli));
+  const nome = sel?.name || "Cliente";
+  const linkSolicitacao = sel
+    ? `${window.location.origin}/?solicitar=${encodeURIComponent(sel.id)}&nome=${encodeURIComponent(nome)}`
+    : "";
+  const linkPortal = sel
+    ? `${window.location.origin}/?portal=${encodeURIComponent(sel.id)}&nome=${encodeURIComponent(nome)}`
+    : "";
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:820 }}>
+      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>
+        Links do Cliente
+      </h1>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>
+        Selecione um cliente ativo para gerar os links.
+      </p>
+
+      <Field
+        label="Cliente"
+        value={selCli}
+        onChange={setSelCli}
+        options={[{ value:"", label:"Selecionar cliente..." }, ...clientes.map(c => ({ value:String(c.id), label:c.name }))]}
+      />
+
+      {sel && (
+        <div style={{ marginTop:16, display:"grid", gap:12 }}>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:14 }}>
+            <div style={{ color:C.accent, fontSize:12, fontWeight:700, marginBottom:6 }}>Link para Solicitação</div>
+            <div style={{ color:C.text, fontSize:12, wordBreak:"break-all" }}>{linkSolicitacao}</div>
+          </div>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:14 }}>
+            <div style={{ color:C.accent, fontSize:12, fontWeight:700, marginBottom:6 }}>Link do Portal do Cliente</div>
+            <div style={{ color:C.text, fontSize:12, wordBreak:"break-all" }}>{linkPortal}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+  function LinksDoCliente({ leads }) {
+  const clientes = (leads || []).filter(l => l.categoria === "cliente_fixo");
+  const [selCli, setSelCli] = useState("");
+
+  const sel = clientes.find(c => String(c.id) === String(selCli));
+  const nome = sel?.name || "Cliente";
+
+  const linkSolicitacao = sel
+    ? `${window.location.origin}/?solicitar=${encodeURIComponent(sel.id)}&nome=${encodeURIComponent(nome)}`
+    : "";
+
+  const linkPortal = sel
+    ? `${window.location.origin}/?portal=${encodeURIComponent(sel.id)}&nome=${encodeURIComponent(nome)}`
+    : "";
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:820 }}>
+      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>
+        Links do Cliente
+      </h1>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>
+        Selecione um cliente ativo para gerar os links.
+      </p>
+
+      <Field
+        label="Cliente"
+        value={selCli}
+        onChange={setSelCli}
+        options={[{ value:"", label:"Selecionar cliente..." }, ...clientes.map(c => ({ value:String(c.id), label:c.name }))]}
+      />
+
+      {sel && (
+        <div style={{ marginTop:16, display:"grid", gap:12 }}>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:14 }}>
+            <div style={{ color:C.accent, fontSize:12, fontWeight:700, marginBottom:6 }}>Link para Solicitação</div>
+            <div style={{ color:C.text, fontSize:12, wordBreak:"break-all" }}>{linkSolicitacao}</div>
+          </div>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:14 }}>
+            <div style={{ color:C.accent, fontSize:12, fontWeight:700, marginBottom:6 }}>Link do Portal do Cliente</div>
+            <div style={{ color:C.text, fontSize:12, wordBreak:"break-all" }}>{linkPortal}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
   async function salvarResposta(id) {
     await supabase.from("solicitacoes").update({ status:novoStatus, resposta_designer:resposta }).eq("id", id);
@@ -3834,7 +3925,7 @@ export default function App() {
           {view==="portfolio"   && <Portfolio items={portfolio} setItems={setPortfolio}/>}
           {view==="notes"       && <Notes notes={notes} setNotes={setNotes}/>}
           {view==="relatorio"   && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
-          {view==="formulario"  && <FormularioPedido leads={leads}/>}
+          {view==="formulario"  && <LinksDoCliente leads={leads}/>}
           {view==="portal"      && <PortalCliente leads={leads} setDemandas={setDemandas}/>}
         </div>
       </div>
