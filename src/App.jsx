@@ -2719,14 +2719,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                 <textarea
                   value={notaEdit}
                   onChange={e => { setNotaEdit(e.target.value); setNotaSaved(false); }}
-                  placeholder={"Ex:
-MATERIAL: https://drive.google.com/...
-
-DETALHAMENTO:
-• Banner principal (7 artes) – R$ 70,00
-• Banner checkout (1 arte) – R$ 10,00
-
-TOTAL: R$ 80,00"}
+                  placeholder={"Ex:\nMATERIAL: https://drive.google.com/...\n\nDETALHAMENTO:\n• Banner principal (7 artes) – R$ 70,00\n• Banner checkout (1 arte) – R$ 10,00\n\nTOTAL: R$ 80,00"}
                   rows={5}
                   style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 12px", color:C.text, fontSize:12, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}
                 />
