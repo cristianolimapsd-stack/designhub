@@ -2327,8 +2327,8 @@ function BriefingInline({ clienteId, value, onSave }) {
 function FormularioPedido({ setDemandas, setTasks }) {
   // Detecta cliente pelo hash: #pedido/slug/id
   const hash = window.location.hash;
-  const match = hash.match(/#pedido\/[^/]+\/(\d+)/);
-  const clienteId = match ? parseInt(match[1]) : null;
+  const match = hash.match(/#pedido\/[^/]+\/([^/?]+)/);
+  const clienteId = match ? decodeURIComponent(match[1]) : null;
 
   const [cliente, setCliente] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2342,11 +2342,15 @@ function FormularioPedido({ setDemandas, setTasks }) {
     async function buscar() {
       try {
         if (dbReady) {
-          const { data, error } = await supabase
-            .from("leads")
-            .select("*")
-            .eq("id", clienteId)
-            .single();
+         const { data } = await supabase
+  .from("designer_data")
+  .select("value")
+  .eq("key", "dh_leads")
+  .single();
+
+const leadsList = Array.isArray(data?.value) ? data.value : [];
+const found = leadsList.find(l => String(l.id) === String(clienteId));
+setCliente(found || null);
           // aceita qualquer lead com esse ID (categoria pode não estar migrada ainda)
           setCliente(data || null);
         } else {
