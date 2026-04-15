@@ -2336,46 +2336,60 @@ function FormularioPedido({ setDemandas, setTasks }) {
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState(false);
 
-  // Busca o cliente DIRETO do Supabase (não depende do localStorage do designer)
-  useEffect(() => {
-    if (!clienteId) { setLoading(false); return; }
-    async function buscar() {
-      try {
-        if (dbReady) {
+// Busca o cliente DIRETO do Supabase (não depende do localStorage do designer)
+useEffect(() => {
+  if (!clienteId) { setLoading(false); return; }
+
+  async function buscar() {
+    try {
+      let found = null;
+
+      // 1) tenta designer_data
+      if (dbReady) {
         const { data, error } = await supabase
-  .from("designer_data")
-  .select("value, updated_at")
-  .eq("key", "dh_leads")
-  .order("updated_at", { ascending: false })
-  .limit(1);
+          .from("designer_data")
+          .select("value, updated_at")
+          .eq("key", "dh_leads")
+          .order("updated_at", { ascending: false })
+          .limit(1);
 
-if (error) throw error;
+        if (error) console.error("designer_data erro:", error);
 
-const rawValue = data?.[0]?.value;
-let leadsList = [];
+        const rawValue = data?.[0]?.value;
+        let leadsList = [];
 
-if (Array.isArray(rawValue)) {
-  leadsList = rawValue;
-} else if (typeof rawValue === "string") {
-  try { leadsList = JSON.parse(rawValue); } catch {}
-}
-
-const found = leadsList.find(l => String(l?.id) === String(clienteId));
-setCliente(found || null);
-
-          // aceita qualquer lead com esse ID (categoria pode não estar migrada ainda)
-        } else {
-          // Supabase não configurado
-          setCliente(null);
+        if (Array.isArray(rawValue)) {
+          leadsList = rawValue;
+        } else if (typeof rawValue === "string") {
+          try { leadsList = JSON.parse(rawValue); } catch {}
+        } else if (rawValue && Array.isArray(rawValue.items)) {
+          leadsList = rawValue.items;
         }
-      } catch(e) {
-        setCliente(null);
-      } finally {
-        setLoading(false);
+
+        found = leadsList.find(l => String(l?.id) === String(clienteId)) || null;
+        console.log("clienteId:", clienteId, "leads:", leadsList.length, "found:", found);
       }
+
+      // 2) fallback localStorage (se abrir no navegador do designer)
+      if (!found) {
+        const local = JSON.parse(localStorage.getItem("dh_leads") || "[]");
+        found = Array.isArray(local)
+          ? local.find(l => String(l?.id) === String(clienteId)) || null
+          : null;
+      }
+
+      setCliente(found);
+    } catch (e) {
+      console.error("buscar cliente falhou:", e);
+      setCliente(null);
+    } finally {
+      setLoading(false);
     }
-    buscar();
-  }, [clienteId]);
+  }
+
+  buscar();
+}, [clienteId]);
+
 
   const enviar = async () => {
     if (!form.titulo || !cliente) { setErro(true); return; }
