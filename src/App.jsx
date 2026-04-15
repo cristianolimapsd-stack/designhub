@@ -2328,108 +2328,79 @@ function BriefingInline({ clienteId, value, onSave }) {
 // FORMULÁRIO PÚBLICO DE PEDIDOS
 // ══════════════════════════════════════════════════════════════════════════════
 function FormularioPedido({ setDemandas, setTasks }) {
-  // Detecta cliente pelo hash: #pedido/slug/id
+  // Detecta cliente pelo hash: #pedido/slug/id?nome=...
   const hash = window.location.hash;
   const match = hash.match(/#pedido\/[^/]+\/([^/?]+)/);
   const clienteId = match ? decodeURIComponent(match[1]) : null;
 
+  const hashQuery = hash.includes("?") ? hash.split("?")[1] : "";
+  const hashParams = new URLSearchParams(hashQuery);
+  const clienteNomeFromLink = hashParams.get("nome") || "Cliente";
+
   const [cliente, setCliente] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ titulo:"", descricao:"", prazo:"" });
+  const [form, setForm] = useState({ titulo: "", descricao: "", prazo: "" });
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState(false);
 
-// Busca o cliente DIRETO do Supabase (não depende do localStorage do designer)
-useEffect(() => {
-  if (!clienteId) { setLoading(false); return; }
-
-  async function buscar() {
-    try {
-      let found = null;
-
-      // 1) tenta designer_data
-      if (dbReady) {
-        const { data, error } = await supabase
-          .from("designer_data")
-          .select("value, updated_at")
-          .eq("key", "dh_leads")
-          .order("updated_at", { ascending: false })
-          .limit(1);
-
-        if (error) console.error("designer_data erro:", error);
-
-        const rawValue = data?.[0]?.value;
-        let leadsList = [];
-
-        if (Array.isArray(rawValue)) {
-          leadsList = rawValue;
-        } else if (typeof rawValue === "string") {
-          try { leadsList = JSON.parse(rawValue); } catch {}
-        } else if (rawValue && Array.isArray(rawValue.items)) {
-          leadsList = rawValue.items;
-        }
-
-        found = leadsList.find(l => String(l?.id) === String(clienteId)) || null;
-        console.log("clienteId:", clienteId, "leads:", leadsList.length, "found:", found);
-      }
-
-      // 2) fallback localStorage (se abrir no navegador do designer)
-      if (!found) {
-        const local = JSON.parse(localStorage.getItem("dh_leads") || "[]");
-        found = Array.isArray(local)
-          ? local.find(l => String(l?.id) === String(clienteId)) || null
-          : null;
-      }
-
-      setCliente(found);
-    } catch (e) {
-      console.error("buscar cliente falhou:", e);
+  useEffect(() => {
+    if (!clienteId) {
       setCliente(null);
-    } finally {
       setLoading(false);
+      return;
     }
-  }
 
-  buscar();
-}, [clienteId]);
-
+    // Link público: usa os dados vindos da URL
+    setCliente({ id: clienteId, name: clienteNomeFromLink });
+    setLoading(false);
+  }, [clienteId, clienteNomeFromLink]);
 
   const enviar = async () => {
-    if (!form.titulo || !cliente) { setErro(true); return; }
-    const nova = {
-      id: Date.now(),
-      titulo: form.titulo,
-      descricao: form.descricao,
-      prazo: form.prazo,
-      valor: 0,
-      status: "triagem",
-      cliente_id: cliente.id,
-      data_criacao: new Date().toISOString().split("T")[0],
-    };
-    // Salva direto no Supabase (fonte da verdade para o designer ver)
-    if (dbReady) {
-      try { await supabase.from("demandas").insert([{ ...nova, id: undefined }]); } catch(e) {}
+    if (!form.titulo || !clienteId) {
+      setErro(true);
+      return;
     }
-    // Atualiza estado local também (se o designer estiver com o app aberto)
-    if (setDemandas) setDemandas(ds => [...ds, nova]);
-    setEnviado(true);
+
+    try {
+      if (dbReady) {
+        await supabase.from("solicitacoes").insert([{
+          id: Date.now(),
+          cliente_id: clienteId,
+          cliente_nome: cliente?.name || clienteNomeFromLink || "Cliente",
+          tipo: form.titulo,
+          descricao: form.descricao || "",
+          prazo: form.prazo || "",
+          referencias: "",
+          observacoes: "",
+          status: "pendente",
+          created_at: new Date().toISOString(),
+        }]);
+      }
+      setEnviado(true);
+    } catch (e) {
+      console.error("erro ao enviar solicitacao:", e);
+      setErro(true);
+    }
   };
 
   if (loading) return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ color:C.muted, fontSize:16 }}>Carregando...</div>
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: C.muted, fontSize: 16 }}>Carregando...</div>
     </div>
   );
 
-  if (!cliente) return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ textAlign:"center", color:C.muted }}>
-        <div style={{ fontSize:40, marginBottom:12 }}>❌</div>
-        <div style={{ fontSize:16, color:C.text, marginBottom:8 }}>TESTE 123</div>
-        <div style={{ fontSize:13 }}>Verifique o link com seu designer.</div>
+  if (!clienteId) return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center", color: C.muted }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>❌</div>
+        <div style={{ fontSize: 16, color: C.text, marginBottom: 8 }}>Link inválido ou cliente não encontrado.</div>
+        <div style={{ fontSize: 13 }}>Verifique o link com seu designer.</div>
       </div>
     </div>
   );
+
+  // ...restante do JSX da página (formulário / sucesso) continua igual
+}
 
   if (enviado) return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
