@@ -2399,9 +2399,6 @@ function FormularioPedido({ setDemandas, setTasks }) {
     </div>
   );
 
-  // ...restante do JSX da página (formulário / sucesso) continua igual
-}
-
   if (enviado) return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ textAlign:"center", maxWidth:400, padding:32 }}>
