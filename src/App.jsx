@@ -3565,6 +3565,11 @@ function LinksDoCliente({ leads }) {
     }
   };
 
+  const openLink = (link) => {
+    if (!link) return;
+    window.open(link, "_blank", "noopener,noreferrer");
+  };
+
   const ActionCard = ({ title, subtitle, link, keyName }) => (
     <div
       style={{
@@ -3580,25 +3585,47 @@ function LinksDoCliente({ leads }) {
           <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{subtitle}</div>
         </div>
 
-        <button
-          onClick={() => copyToClipboard(link, keyName)}
-          disabled={!link}
-          style={{
-            background: copied === keyName ? `${C.green}18` : `${C.accent}14`,
-            border:`1px solid ${copied === keyName ? `${C.green}55` : `${C.accent}35`}`,
-            color: copied === keyName ? C.green : C.accent,
-            borderRadius:10,
-            padding:"8px 12px",
-            fontSize:12,
-            fontWeight:700,
-            cursor: link ? "pointer" : "not-allowed",
-            opacity: link ? 1 : 0.55,
-            fontFamily:"inherit",
-            whiteSpace:"nowrap"
-          }}
-        >
-          {copied === keyName ? "✓ Copiado" : "📋 Copiar"}
-        </button>
+        <div style={{ display:"flex", gap:8 }}>
+          <button
+            onClick={() => openLink(link)}
+            disabled={!link}
+            style={{
+              background:`${C.teal}14`,
+              border:`1px solid ${C.teal}35`,
+              color:C.teal,
+              borderRadius:10,
+              padding:"8px 12px",
+              fontSize:12,
+              fontWeight:700,
+              cursor: link ? "pointer" : "not-allowed",
+              opacity: link ? 1 : 0.55,
+              fontFamily:"inherit",
+              whiteSpace:"nowrap"
+            }}
+          >
+            🔗 Abrir
+          </button>
+
+          <button
+            onClick={() => copyToClipboard(link, keyName)}
+            disabled={!link}
+            style={{
+              background: copied === keyName ? `${C.green}18` : `${C.accent}14`,
+              border:`1px solid ${copied === keyName ? `${C.green}55` : `${C.accent}35`}`,
+              color: copied === keyName ? C.green : C.accent,
+              borderRadius:10,
+              padding:"8px 12px",
+              fontSize:12,
+              fontWeight:700,
+              cursor: link ? "pointer" : "not-allowed",
+              opacity: link ? 1 : 0.55,
+              fontFamily:"inherit",
+              whiteSpace:"nowrap"
+            }}
+          >
+            {copied === keyName ? "✓ Copiado" : "📋 Copiar"}
+          </button>
+        </div>
       </div>
 
       <div
@@ -3631,7 +3658,7 @@ function LinksDoCliente({ leads }) {
       </div>
 
       <p style={{ color:C.muted, fontSize:13, marginBottom:18 }}>
-        Gere links seguros para solicitação e acompanhamento. Copie com 1 clique.
+        Gere links seguros para solicitação e acompanhamento. Copie ou abra com 1 clique.
       </p>
 
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
@@ -3672,8 +3699,6 @@ function LinksDoCliente({ leads }) {
     </div>
   );
 }
-
-
 
 function LoginScreen({ onLogin }) {
   const [user, setUser] = useState(""); 
