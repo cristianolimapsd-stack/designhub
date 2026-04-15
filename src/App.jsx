@@ -91,50 +91,48 @@ const MONTHS_SHORT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out
 const _now = new Date();
 const NOW_MONTH = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}`;
 const NOW_YEAR  = _now.getFullYear();
-const NOW_MO    = _now.getMonth();
+const NOW_MO    = _now.getMonth(); // index 0-based
 
-// ─── Constants & Getters (CORREÇÃO 3) ──────────────────────────────────────────
+// ─── Initial Data ─────────────────────────────────────────────────────────────
 const CATEGORIA = {
-  get lead()         { return { label:"Lead",          color:C.yellow, icon:"⚡" }; },
-  get cliente_fixo() { return { label:"Cliente Ativo", color:C.teal,   icon:"⭐" }; },
+  lead:         { label:"Lead",          color:C.yellow, icon:"⚡" },
+  cliente_fixo: { label:"Cliente Ativo",  color:C.teal,   icon:"⭐" },
 };
 
 const STATUS_DEMANDA = {
-  get triagem()    { return { label:"Triagem",      color:"#94a3b8", icon:"📥" }; },
-  get em_criacao() { return { label:"Em Criação",   color:C.accent,  icon:"✏️"  }; },
-  get revisao()    { return { label:"Revisão",      color:"#38bdf8", icon:"🔍" }; },
-  get aprovacao()  { return { label:"Aprovação",    color:C.orange,  icon:"👀" }; },
-  get finalizado() { return { label:"Finalizado",   color:C.green,   icon:"✅" }; },
+  triagem:     { label:"Triagem",      color:"#94a3b8", icon:"📥" },
+  em_criacao:  { label:"Em Criação",   color:"#a78bfa", icon:"✏️"  },
+  revisao:     { label:"Revisão",      color:"#38bdf8", icon:"🔍" },
+  aprovacao:   { label:"Aprovação",    color:"#fb923c", icon:"👀" },
+  finalizado:  { label:"Finalizado",   color:"#4ade80", icon:"✅" },
 };
-
 const KANBAN_COLS = ["triagem","em_criacao","revisao","aprovacao","finalizado"];
 
 const initLeads = [];
+
 const initTasks = [];
+
 const initPortfolio = [
   { id:1, title:"Identidade Visual — Pixel Studio", url:"https://behance.net", tag:"Branding", year:"2025", month:"2025-11", value:4500,  cover:"🎨", description:"Rebranding completo com sistema de identidade visual." },
   { id:2, title:"UI Kit — Tech Venture App",        url:"https://figma.com",   tag:"UI/UX",    year:"2025", month:"2025-09", value:8500,  cover:"📱", description:"Design system com mais de 200 componentes." },
   { id:3, title:"Website — Brand Co",               url:"https://dribbble.com",tag:"Web",      year:"2024", month:"2024-06", value:6000,  cover:"🌐", description:"Landing page institucional e campanha digital." },
 ];
+
 const initTimerHistory = [];
 const initDemandas = [];
 
 const STATUS = {
-  get novo()       { return { label:"Novo",       color:C.teal   }; },
-  get negociando() { return { label:"Negociando", color:C.yellow }; },
-  get proposta()   { return { label:"Proposta",   color:C.accent }; },
-  get fechado()    { return { label:"Fechado",    color:C.green  }; },
-  get perdido()    { return { label:"Perdido",    color:C.red    }; },
+  novo:       { label:"Novo",       color:C.teal   },
+  negociando: { label:"Negociando", color:C.yellow },
+  proposta:   { label:"Proposta",   color:C.accent },
+  fechado:    { label:"Fechado",    color:C.green  },
+  perdido:    { label:"Perdido",    color:C.red    },
 };
-
-const PRIORITY = { 
-  get alta()  { return { dot:C.red }; }, 
-  get media() { return { dot:C.yellow }; }, 
-  get baixa() { return { dot:C.teal }; } 
-};
+const PRIORITY = { alta:{ dot:C.red }, media:{ dot:C.yellow }, baixa:{ dot:C.teal } };
 const TYPE = { reuniao:{icon:"🤝",label:"Reunião"}, entrega:{icon:"📦",label:"Entrega"}, tarefa:{icon:"✅",label:"Tarefa"} };
 
 // ─── Icons ─────────────────────────────────────────────────────────────────────
+// ─── Ícones flat para o portal público ────────────────────────────────────────
 function PortalIco({ n, s=20, c="currentColor" }) {
   const icons = {
     check:    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
@@ -155,6 +153,7 @@ function PortalIco({ n, s=20, c="currentColor" }) {
   };
   return icons[n] || null;
 }
+
 
 function Ico({ n, s=16, c="currentColor" }) {
   const M = {
@@ -198,8 +197,9 @@ function useTimer(onSave) {
   const [running, setRunning] = useState(false);
   const [goal] = useState(8 * 3600);
   const intervalRef = useRef(null);
-  const secondsRef = useRef(0);
+  const secondsRef = useRef(0); // ref para evitar stale closure no reset
 
+  // mantém secondsRef sempre atualizado
   useEffect(() => { secondsRef.current = seconds; }, [seconds]);
 
   useEffect(() => {
@@ -285,6 +285,7 @@ function Toggle({ opts, val, onChange }) {
 }
 
 function MonthPicker({ value, onChange, label }) {
+  // value = "YYYY-MM"
   const [yr, mo] = value.split("-").map(Number);
   const prev = () => { const d = new Date(yr, mo-2, 1); onChange(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`); };
   const next = () => { const d = new Date(yr, mo, 1); onChange(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`); };
@@ -301,8 +302,9 @@ function MonthPicker({ value, onChange, label }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DASHBOARD & RELATORIOS
+// DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
+// ─── Card de solicitações no Dashboard ────────────────────────────────────────
 function SolicDashCard({ setView, colors }) {
   const C = colors;
   const [solic, setSolic] = useState([]);
@@ -561,12 +563,13 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
   const todT = tasks.filter(t=>t.date===today);
   const pct = Math.min(100, Math.round((timer.seconds/timer.goal)*100));
 
+  // Last 7 days timer
   const last7 = Array.from({length:7},(_,i)=>{
-    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    const d = new Date(2026,2,5-i); // from March 5 back
     const key = d.toISOString().split("T")[0];
     const rec = timerHistory.find(h=>h.date===key);
     return { label:d.toLocaleDateString("pt-BR",{weekday:"short",day:"numeric"}), secs: key===today?timer.seconds:(rec?.seconds||0) };
-  });
+  }).reverse();
   const maxSecs = Math.max(...last7.map(d=>d.secs), 1);
 
   return (
@@ -576,6 +579,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
         <p style={{ color:C.muted, margin:"5px 0 0", fontSize:13 }}>{new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
       </div>
 
+      {/* Timer */}
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"20px 24px", marginBottom:22, display:"flex", alignItems:"center", gap:20 }}>
         <div style={{ width:46, height:46, borderRadius:12, background:timer.running?`${C.accentGlow}22`:C.border, display:"flex", alignItems:"center", justifyContent:"center", border:`1px solid ${timer.running?C.accent:C.border}` }}>
           <Ico n="timer" s={20} c={timer.running?C.accent:C.muted}/>
@@ -595,6 +599,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
         </div>
       </div>
 
+      {/* Metrics */}
       <div style={{ display:"flex", gap:14, marginBottom:22, flexWrap:"wrap" }}>
         {[
           { label:"Receita fechada", value:`R$ ${totalV.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>l.status==="fechado").length} projetos`, accent:C.green, onClick:null },
@@ -611,6 +616,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
         ))}
       </div>
 
+      {/* Kanban resumo em tempo real */}
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 22px", marginBottom:22 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
           <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>🗂 Kanban — visão geral</span>
@@ -634,6 +640,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
+        {/* Timer 7 days */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
             <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>Horas — últimos 7 dias</span>
@@ -649,6 +656,7 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
           </div>
         </div>
 
+        {/* Today + recent leads */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
             <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>Agenda de Hoje</span>
@@ -700,6 +708,7 @@ function TimerHistoryView({ timerHistory, timer }) {
   const maxSecs = Math.max(...monthRecords.map(h=>h.seconds), 1);
   const goalSecs = 8*3600;
 
+  // Build full month grid
   const daysInMo = new Date(yr,mo,0).getDate();
   const allDays = Array.from({length:daysInMo},(_,i)=>{
     const d = i+1;
@@ -718,6 +727,7 @@ function TimerHistoryView({ timerHistory, timer }) {
         <MonthPicker value={selMonth} onChange={setSelMonth}/>
       </div>
 
+      {/* Summary cards */}
       <div style={{ display:"flex", gap:14, marginBottom:24 }}>
         {[
           { label:"Total no mês", value:fmtH(totalSecs), sub:`${monthRecords.length} dias registrados`, accent:C.accent },
@@ -733,6 +743,7 @@ function TimerHistoryView({ timerHistory, timer }) {
         ))}
       </div>
 
+      {/* Bar chart — all days of month */}
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"22px 24px", marginBottom:20 }}>
         <div style={{ marginBottom:16 }}>
           <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>Distribuição diária — {MONTHS[mo-1]} {yr}</span>
@@ -755,6 +766,7 @@ function TimerHistoryView({ timerHistory, timer }) {
         </div>
       </div>
 
+      {/* Day list */}
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
         <div style={{ padding:"12px 18px", background:C.surface, borderBottom:`1px solid ${C.border}` }}>
           <span style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>Registros do mês · {monthRecords.length} dias</span>
@@ -790,7 +802,10 @@ function TimerHistoryView({ timerHistory, timer }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// CRM (BriefingEditor & Leads)
+// CRM
+// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// BRIEFING EDITOR (inline, com auto-save)
 // ══════════════════════════════════════════════════════════════════════════════
 function BriefingEditor({ lead, onSave }) {
   const [text, setText] = useState(lead.briefing_padrao||"");
@@ -827,8 +842,8 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
   const [editId, setEditId] = useState(null);
   const [search, setSearch] = useState("");
   const [fs, setFs] = useState("todos");
-  const [fc, setFc] = useState("todos");
-  const [briefingId, setBriefingId] = useState(null);
+  const [fc, setFc] = useState("todos"); // filtro categoria
+  const [briefingId, setBriefingId] = useState(null); // drawer briefing
   const E = { name:"", company:"", email:"", value:"", status:"novo", tag:"", categoria:"lead", briefing_padrao:"" };
   const [form, setForm] = useState(E);
 
@@ -851,11 +866,13 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
   const saveBriefing = (id, text) => setLeads(ls=>ls.map(l=>l.id===id?{...l,briefing_padrao:text}:l));
 
   const briefingLead = leads.find(l=>l.id===briefingId);
+
   const TotalFixo = leads.filter(l=>l.categoria==="cliente_fixo"&&l.status==="fechado").reduce((a,b)=>a+b.value,0);
   const TotalLead  = leads.filter(l=>l.categoria==="lead"&&l.status==="fechado").reduce((a,b)=>a+b.value,0);
 
   return (
     <div style={{ padding:"28px 32px" }}>
+      {/* Drawer Briefing */}
       {briefingLead && (
         <div style={{ position:"fixed", inset:0, zIndex:900 }} onClick={()=>setBriefingId(null)}>
           <div style={{ position:"absolute", right:0, top:0, bottom:0, width:420, background:C.surface, borderLeft:`1px solid ${C.border}`, padding:28, display:"flex", flexDirection:"column", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)" }}
@@ -879,6 +896,7 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
               <button onClick={()=>setBriefingId(null)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="close" s={18}/></button>
             </div>
 
+            {/* Info rápida */}
             <div style={{ background:C.card, borderRadius:12, padding:"13px 16px", marginBottom:18, border:`1px solid ${C.border}` }}>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 <div><div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Valor</div><div style={{ color:C.green, fontWeight:700, fontSize:14 }}>R$ {briefingLead.value.toLocaleString("pt-BR")}</div></div>
@@ -888,19 +906,29 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
               </div>
             </div>
 
+            {/* Briefing */}
             <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                <label style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>📋 Briefing Padrão da Marca</label>
-                {briefingLead.categoria!=="cliente_fixo" && <span style={{ color:C.yellow, fontSize:10 }}>⚠ converta para Cliente Ativo</span>}
+                <label style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>
+                  📋 Briefing Padrão da Marca
+                </label>
+                {briefingLead.categoria!=="cliente_fixo" && (
+                  <span style={{ color:C.yellow, fontSize:10 }}>⚠ converta para Cliente Ativo</span>
+                )}
               </div>
               <BriefingEditor lead={briefingLead} onSave={saveBriefing} />
             </div>
 
+            {/* Ações */}
             <div style={{ marginTop:18, display:"flex", flexDirection:"column", gap:8 }}>
               {briefingLead.categoria!=="cliente_fixo" && (
-                <button onClick={()=>{converter(briefingLead.id);}} style={{ background:`linear-gradient(135deg,${C.teal}88,${C.teal})`, border:"none", borderRadius:10, padding:"11px 18px", color:"#fff", cursor:"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>⭐ Converter em Cliente Ativo</button>
+                <button onClick={()=>{converter(briefingLead.id);}} style={{ background:`linear-gradient(135deg,${C.teal}88,${C.teal})`, border:"none", borderRadius:10, padding:"11px 18px", color:"#fff", cursor:"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  ⭐ Converter em Cliente Ativo
+                </button>
               )}
-              <button onClick={()=>{openEdit(briefingLead);setBriefingId(null);}} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 18px", color:C.text, cursor:"pointer", fontWeight:600, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><Ico n="edit" s={13} c={C.muted}/> Editar dados</button>
+              <button onClick={()=>{openEdit(briefingLead);setBriefingId(null);}} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 18px", color:C.text, cursor:"pointer", fontWeight:600, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                <Ico n="edit" s={13} c={C.muted}/> Editar dados
+              </button>
             </div>
           </div>
         </div>
@@ -917,6 +945,7 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
         </div>
       </div>
 
+      {/* Filtros */}
       <div style={{ display:"flex", gap:10, marginBottom:18, flexWrap:"wrap" }}>
         <div style={{ position:"relative", flex:1, minWidth:200 }}>
           <div style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}><Ico n="search" s={14} c={C.muted}/></div>
@@ -926,13 +955,17 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
           {["todos","lead","cliente_fixo"].map(cat=>{
             const cfg = cat==="todos" ? {label:"Todos",color:C.accent,icon:""} : CATEGORIA[cat];
             return (
-              <button key={cat} onClick={()=>setFc(cat)} style={{ background:fc===cat?`${cfg.color}18`:C.card, border:`1px solid ${fc===cat?cfg.color:C.border}`, borderRadius:8, padding:"7px 13px", color:fc===cat?cfg.color:C.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>{cfg.icon} {cfg.label}</button>
+              <button key={cat} onClick={()=>setFc(cat)} style={{ background:fc===cat?`${cfg.color}18`:C.card, border:`1px solid ${fc===cat?cfg.color:C.border}`, borderRadius:8, padding:"7px 13px", color:fc===cat?cfg.color:C.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                {cfg.icon} {cfg.label}
+              </button>
             );
           })}
         </div>
         <div style={{ display:"flex", gap:5 }}>
           {["todos",...Object.keys(STATUS)].map(s=>(
-            <button key={s} onClick={()=>setFs(s)} style={{ background:fs===s?`${C.accent}18`:C.card, border:`1px solid ${fs===s?C.accent:C.border}`, borderRadius:8, padding:"7px 12px", color:fs===s?C.accent:C.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>{s==="todos"?"Status":STATUS[s].label}</button>
+            <button key={s} onClick={()=>setFs(s)} style={{ background:fs===s?`${C.accent}18`:C.card, border:`1px solid ${fs===s?C.accent:C.border}`, borderRadius:8, padding:"7px 12px", color:fs===s?C.accent:C.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+              {s==="todos"?"Status":STATUS[s].label}
+            </button>
           ))}
         </div>
       </div>
@@ -961,7 +994,9 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
                     </td>
                     <td style={{ padding:"13px 18px", color:C.muted, fontSize:13 }}>{l.company}</td>
                     <td style={{ padding:"13px 18px" }}>
-                      <span style={{ background:`${cat.color}15`, color:cat.color, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>{cat.icon} {cat.label}</span>
+                      <span style={{ background:`${cat.color}15`, color:cat.color, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>
+                        {cat.icon} {cat.label}
+                      </span>
                       {l.briefing_padrao && <span style={{ marginLeft:6, fontSize:12 }} title="Briefing salvo">📋</span>}
                     </td>
                     <td style={{ padding:"13px 18px" }}><span style={{ background:`${C.teal}15`, color:C.teal, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:600 }}>{l.tag}</span></td>
@@ -1065,7 +1100,6 @@ function Leads({ leads, setLeads, demandas, setDemandas }) {
     </div>
   );
 }
-
 // ══════════════════════════════════════════════════════════════════════════════
 // AGENDA
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1218,7 +1252,10 @@ function Agenda({ tasks, setTasks, demandas, setDemandas }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FINANCEIRO — REFATORADO + GAMIFICAÇÃO + CORREÇÃO FINDLAST
+// FINANCEIRO — REFATORADO + FILTRO POR MÊS
+// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// FINANCEIRO INTELIGENTE + GAMIFICAÇÃO
 // ══════════════════════════════════════════════════════════════════════════════
 function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
   const [selMonth, setSelMonth] = useState(NOW_MONTH);
@@ -1228,6 +1265,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
 
   const today = new Date().toISOString().split("T")[0];
 
+  // ── Receita real: demandas finalizadas ──────────────────────────────────────
   const receitaMes = (monthKey) =>
     demandas.filter(d => d.status === "finalizado" && d.data_criacao?.startsWith(monthKey))
             .reduce((a,b) => a + (parseFloat(b.valor)||0), 0);
@@ -1236,12 +1274,14 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
   const moJobs      = demandas.filter(d => d.status==="finalizado" && d.data_criacao?.startsWith(selMonth));
   const moEmAndamento = demandas.filter(d => d.status !== "finalizado" && d.data_criacao?.startsWith(selMonth));
 
+  // Mês anterior
   const [yr, mo] = selMonth.split("-").map(Number);
   const prevDate  = new Date(yr, mo-2, 1);
   const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,"0")}`;
   const prevReceita = receitaMes(prevMonth);
   const diffPct = prevReceita > 0 ? Math.round((moReceita - prevReceita) / prevReceita * 100) : null;
 
+  // ── Gráfico 8 meses ─────────────────────────────────────────────────────────
   const chartMonths = Array.from({length:8},(_,i)=>{
     const d = new Date(NOW_YEAR, NOW_MO - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
@@ -1251,6 +1291,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
   }).reverse();
   const maxChart = Math.max(...chartMonths.map(m=>m.val), meta, 1);
 
+  // ── Ranking clientes ────────────────────────────────────────────────────────
   const clientes = leads.filter(l => l.categoria === "cliente_fixo");
   const rankClientes = clientes.map(c => ({
     ...c,
@@ -1258,6 +1299,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
     jobs:  demandas.filter(d => d.cliente_id===c.id && d.status==="finalizado").length,
   })).sort((a,b) => b.total - a.total);
 
+  // ── Ranking por tag/serviço ─────────────────────────────────────────────────
   const tagMap = {};
   demandas.filter(d=>d.status==="finalizado").forEach(d=>{
     const tag = d.tag || "Sem tag";
@@ -1267,12 +1309,15 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
   });
   const rankTags = Object.entries(tagMap).map(([tag,v])=>({tag,...v})).sort((a,b)=>b.total-a.total);
 
+  // ── Meta progress ───────────────────────────────────────────────────────────
   const metaPct = meta > 0 ? Math.min(100, Math.round(moReceita / meta * 100)) : 0;
   const metaBatida = moReceita >= meta;
 
+  // ── GAMIFICAÇÃO ─────────────────────────────────────────────────────────────
   const totalJobs = demandas.filter(d=>d.status==="finalizado").length;
   const totalReceita = demandas.filter(d=>d.status==="finalizado").reduce((a,b)=>a+(parseFloat(b.valor)||0),0);
 
+  // XP e Nível
   const xp = Math.floor(totalReceita / 100) + (totalJobs * 50);
   const niveis = [
     { nome:"Iniciante",     min:0,     max:500,   icon:"🌱", cor:C.muted   },
@@ -1281,12 +1326,11 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
     { nome:"Expert",        min:5000,  max:15000, icon:"💎", cor:C.teal    },
     { nome:"Lenda",         min:15000, max:99999, icon:"🏆", cor:C.orange  },
   ];
-  
-  // CORREÇÃO 2: Resolvendo o problema do findLast compatibility
-  const nivel = [...niveis].reverse().find(n => xp >= n.min) || niveis[0];
+  const nivel = niveis.findLast(n => xp >= n.min) || niveis[0];
   const nextNivel = niveis[niveis.indexOf(nivel)+1];
   const xpPct = nextNivel ? Math.round((xp - nivel.min) / (nextNivel.min - nivel.min) * 100) : 100;
 
+  // Streak de dias trabalhados (timer)
   let streak = 0;
   const d = new Date(); d.setDate(d.getDate()-1);
   while (true) {
@@ -1296,6 +1340,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
     if (streak > 365) break;
   }
 
+  // Conquistas
   const conquistas = [
     { id:"first_job",   icon:"🎯", nome:"Primeiro Job",     desc:"Complete seu primeiro job",           ok: totalJobs >= 1 },
     { id:"jobs5",       icon:"⚡", nome:"5 Jobs",           desc:"Complete 5 jobs finalizados",         ok: totalJobs >= 5 },
@@ -1310,12 +1355,14 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
     { id:"clientes3",   icon:"⭐", nome:"3 clientes ativos", desc:"Tenha 3 clientes ativos",             ok: clientes.length >= 3 },
   ];
 
+  // Ranking melhores meses (todos os meses com receita)
   const allMonthsRank = [...new Set(demandas.filter(d=>d.status==="finalizado").map(d=>d.data_criacao?.slice(0,7)).filter(Boolean))]
     .map(key => ({ key, label:`${MONTHS_SHORT[parseInt(key.split("-")[1])-1]}/${key.split("-")[0]}`, val: receitaMes(key) }))
     .sort((a,b) => b.val - a.val).slice(0,5);
 
   return (
     <div style={{ padding:"28px 32px", height:"calc(100vh - 54px)", overflowY:"auto" }}>
+      {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
         <div>
           <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>💰 Financeiro</h1>
@@ -1324,6 +1371,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
         <MonthPicker value={selMonth} onChange={setSelMonth} label="Mês:"/>
       </div>
 
+      {/* ── NÍVEL + XP ── */}
       <div style={{ background:`linear-gradient(135deg,${nivel.cor}15,${C.card})`, border:`1px solid ${nivel.cor}30`, borderRadius:16, padding:"20px 24px", marginBottom:20, display:"flex", alignItems:"center", gap:20 }}>
         <div style={{ width:60, height:60, borderRadius:16, background:`${nivel.cor}25`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, flexShrink:0 }}>{nivel.icon}</div>
         <div style={{ flex:1 }}>
@@ -1345,6 +1393,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
         </div>
       </div>
 
+      {/* ── META MENSAL ── */}
       <div style={{ background:metaBatida?`linear-gradient(135deg,${C.green}15,${C.card})`:`${C.card}`, border:`1px solid ${metaBatida?C.green:C.border}`, borderRadius:16, padding:"20px 24px", marginBottom:20 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -1381,6 +1430,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
             </span>
           )}
         </div>
+        {/* Jobs em andamento */}
         {moEmAndamento.length > 0 && (
           <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${C.border}`, color:C.muted, fontSize:12 }}>
             🔄 {moEmAndamento.length} demanda{moEmAndamento.length>1?"s":""} em andamento · R$ {moEmAndamento.reduce((a,b)=>a+(parseFloat(b.valor)||0),0).toLocaleString("pt-BR")} potencial
@@ -1389,9 +1439,11 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18, marginBottom:20 }}>
+        {/* ── GRÁFICO ── */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:16 }}>📊 Receita — últimos 8 meses</span>
           <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:130, position:"relative" }}>
+            {/* Linha da meta */}
             <div style={{ position:"absolute", left:0, right:0, bottom:`${Math.min(100,meta/maxChart*130)}px`, borderTop:`1px dashed ${C.accent}50`, zIndex:1 }}>
               <span style={{ position:"absolute", right:0, top:-16, color:C.accent, fontSize:9, fontWeight:700 }}>META</span>
             </div>
@@ -1410,6 +1462,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
           </div>
         </div>
 
+        {/* ── RANKING MESES ── */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:14 }}>🏆 Melhores meses</span>
           {allMonthsRank.length === 0 ? (
@@ -1436,6 +1489,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18, marginBottom:20 }}>
+        {/* ── RANKING CLIENTES ── */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:14 }}>⭐ Ranking de Clientes</span>
           {rankClientes.length === 0 ? (
@@ -1464,6 +1518,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
           })}
         </div>
 
+        {/* ── RANKING SERVIÇOS ── */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
           <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:14 }}>🏷 Receita por Serviço</span>
           {rankTags.length === 0 ? (
@@ -1491,6 +1546,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
         </div>
       </div>
 
+      {/* ── CONQUISTAS ── */}
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 24px" }}>
         <span style={{ color:C.text, fontWeight:700, fontSize:14, display:"block", marginBottom:16 }}>🏅 Conquistas — {conquistas.filter(c=>c.ok).length}/{conquistas.length} desbloqueadas</span>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10 }}>
@@ -1511,7 +1567,7 @@ function Finance({ leads, demandas, timerHistory, despesas=[], setDespesas }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// PORTFÓLIO
+// PORTFÓLIO — com Valor e Mês
 // ══════════════════════════════════════════════════════════════════════════════
 function Portfolio({ items, setItems, portfolio: _p, setPortfolio: _sp }) {
   const [modal, setModal] = useState(false);
@@ -1549,6 +1605,7 @@ function Portfolio({ items, setItems, portfolio: _p, setPortfolio: _sp }) {
         <Btn onClick={openAdd}><Ico n="plus" s={14} c="#fff"/> Novo Projeto</Btn>
       </div>
 
+      {/* Tag filter */}
       <div style={{ display:"flex", gap:7, marginBottom:20, flexWrap:"wrap" }}>
         {allTags.map(t=>(
           <button key={t} onClick={()=>setFilterTag(t)} style={{ background:filterTag===t?`${C.accent}18`:C.card, border:`1px solid ${filterTag===t?C.accent:C.border}`, borderRadius:8, padding:"7px 14px", color:filterTag===t?C.accent:C.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
@@ -1586,6 +1643,7 @@ function Portfolio({ items, setItems, portfolio: _p, setPortfolio: _sp }) {
                   <span style={{ color:C.text, fontWeight:700, fontSize:14, lineHeight:1.3, flex:1, paddingRight:8 }}>{item.title}</span>
                 </div>
                 {item.description&&<p style={{ color:C.muted, fontSize:12, lineHeight:1.5, margin:"0 0 10px" }}>{item.description}</p>}
+                {/* Value + Month row */}
                 <div style={{ display:"flex", gap:8, marginBottom:10 }}>
                   {item.value>0&&(
                     <span style={{ background:`${C.green}15`, color:C.green, fontSize:11, padding:"3px 10px", borderRadius:99, fontWeight:700 }}>R$ {item.value.toLocaleString("pt-BR")}</span>
@@ -1683,7 +1741,19 @@ function Notes({ notes, setNotes }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// APP ROOT
+// ══════════════════════════════════════════════════════════════════════════════
+const INIT_NOTES = [
+  { id:1, title:"Briefing Brand Co", content:"Cliente quer rebranding completo. Cores: azul + dourado. Público 30-50 anos.", date:"2026-03-04" },
+  { id:2, title:"Referências UI Kit", content:"Ver Material 3, Apple HIG e Radix UI para o projeto Tech Venture.", date:"2026-03-03" },
+];
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 // CLIENTES FIXOS
+// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// CLIENTES ATIVOS
 // ══════════════════════════════════════════════════════════════════════════════
 function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, tasks, setTasks }) {
   const clientes = leads.filter(l => l.categoria === "cliente_fixo");
@@ -1727,6 +1797,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
     setLeads(ls => ls.map(l => l.id===id ? {...l, [field]:val} : l));
   };
 
+  // Demandas deste cliente
   const demandasCliente = sel ? demandas.filter(d => d.cliente_id === sel.id) : [];
 
   const openAddDemanda = () => {
@@ -1747,6 +1818,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
     } else {
       const nova = {...demanda, id:Date.now()};
       setDemandas(ds => [...ds, nova]);
+      // Criar tarefa na agenda automaticamente se tiver prazo
       if (nova.prazo) {
         const tarefa = {
           id: Date.now()+1,
@@ -1765,6 +1837,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
   const delDemanda = id => setDemandas(ds => ds.filter(d => d.id !== id));
   const moveDemanda = (id, status) => setDemandas(ds => ds.map(d => d.id===id ? {...d,status} : d));
 
+  // Projetos vinculados
   const projIds = sel?.projeto_ids || [];
   const projCliente = sel
     ? portfolio.filter(p => {
@@ -1796,6 +1869,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
     });
   };
 
+  // Link público do formulário de pedidos
   const slug = sel ? sel.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"") : "";
   const linkPedido = sel ? `${window.location.origin}/#pedido/${slug}/${sel.id}` : "";
 
@@ -1847,6 +1921,8 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
         </div>
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:20, flex:1, minHeight:0 }}>
+
+          {/* Lista */}
           <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", paddingRight:4 }}>
             {clientes.map(c => {
               const isSel = c.id === selId;
@@ -1876,8 +1952,10 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
             })}
           </div>
 
+          {/* Perfil */}
           {sel && (
             <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+              {/* Header */}
               <div style={{ background:`linear-gradient(135deg,${C.teal}18,${C.accentGlow}12)`, borderBottom:`1px solid ${C.border}`, padding:"20px 24px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -1918,6 +1996,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                 </div>
               </div>
 
+              {/* Tabs */}
               <div style={{ display:"flex", gap:0, borderBottom:`1px solid ${C.border}`, background:C.surface }}>
                 {[
                   {id:"briefing",  label:"📋 Briefing & Marca"},
@@ -1932,7 +2011,10 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                 ))}
               </div>
 
+              {/* Tab content */}
               <div style={{ flex:1, overflowY:"auto", padding:"22px 24px" }}>
+
+                {/* ── BRIEFING ── */}
                 {tab==="briefing" && (
                   <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
                     <div>
@@ -1971,6 +2053,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                       <label style={{ display:"block", color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, marginBottom:8 }}>📋 Manual / Briefing Geral</label>
                       <BriefingInline clienteId={sel.id} value={sel.briefing_padrao||""} onSave={updateField}/>
                     </div>
+                    {/* Link do formulário de pedidos */}
                     <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}25`, borderRadius:12, padding:"14px 16px" }}>
                       <div style={{ color:C.accent, fontSize:12, fontWeight:700, marginBottom:8 }}>🔗 Link de Pedidos do Cliente</div>
                       <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -1987,6 +2070,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                   </div>
                 )}
 
+                {/* ── DEMANDAS ── */}
                 {tab==="demandas" && (
                   <div>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -2028,6 +2112,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                                   <button onClick={()=>delDemanda(d.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.red, padding:3 }}><Ico n="trash" s={13}/></button>
                                 </div>
                               </div>
+                              {/* Botões de status */}
                               <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
                                 {Object.entries(STATUS_DEMANDA).filter(([k])=>k!==d.status).map(([k,v])=>(
                                   <button key={k} onClick={()=>moveDemanda(d.id,k)}
@@ -2044,6 +2129,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                   </div>
                 )}
 
+                {/* ── PORTFÓLIO ── */}
                 {tab==="projetos" && (
                   <div>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -2114,6 +2200,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
                   </div>
                 )}
 
+                {/* ── NOTAS ── */}
                 {tab==="notas" && (
                   <NotesSave clienteId={sel.id} value={sel.notas_internas||""}/>
                 )}
@@ -2123,6 +2210,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
         </div>
       )}
 
+      {/* Modal cliente */}
       <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Editar Cliente":"Novo Cliente Ativo"} w={560}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 16px" }}>
           <Field label="Nome" value={form.name} onChange={v=>setForm(f=>({...f,name:v}))}/>
@@ -2130,6 +2218,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
           <Field label="Email" value={form.email} onChange={v=>setForm(f=>({...f,email:v}))} type="email"/>
           <Field label="Telefone / WhatsApp" value={form.telefone||""} onChange={v=>setForm(f=>({...f,telefone:v}))} placeholder="(11) 99999-9999"/>
           <Field label="Tag / Serviço" value={form.tag} onChange={v=>setForm(f=>({...f,tag:v}))}/>
+          {/* Valor total calculado automaticamente pelas demandas finalizadas */}
         </div>
         <Field label="Redes sociais / Site (URL)" value={form.redes||""} onChange={v=>setForm(f=>({...f,redes:v}))} placeholder="https://instagram.com/..."/>
         <Field label="Fontes (separadas por vírgula)" value={form.fontes||""} onChange={v=>setForm(f=>({...f,fontes:v}))} placeholder="Montserrat Bold, Lato Regular"/>
@@ -2146,6 +2235,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
         <Btn onClick={save} full>{editId?"Salvar alterações":"Adicionar Cliente"}</Btn>
       </Modal>
 
+      {/* Modal demanda */}
       <Modal open={modalDemanda} onClose={()=>setModalDemanda(false)} title={editDemandaId?"Editar Demanda":"Nova Demanda"}>
         <Field label="Título" value={formD.titulo} onChange={v=>setFormD(f=>({...f,titulo:v}))} placeholder="Ex: Banner para stories, Landing page..."/>
         <div style={{ marginBottom:14 }}>
@@ -2165,6 +2255,7 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
   );
 }
 
+// Sub-componentes internos do perfil
 function InlineEdit({ clienteId, field, value, onSave, placeholder }) {
   const [txt, setTxt] = useState(value||"");
   const [saved, setSaved] = useState(false);
@@ -2234,6 +2325,7 @@ function BriefingInline({ clienteId, value, onSave }) {
 // FORMULÁRIO PÚBLICO DE PEDIDOS
 // ══════════════════════════════════════════════════════════════════════════════
 function FormularioPedido({ setDemandas, setTasks }) {
+  // Detecta cliente pelo hash: #pedido/slug/id
   const hash = window.location.hash;
   const match = hash.match(/#pedido\/[^/]+\/(\d+)/);
   const clienteId = match ? parseInt(match[1]) : null;
@@ -2244,6 +2336,7 @@ function FormularioPedido({ setDemandas, setTasks }) {
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState(false);
 
+  // Busca o cliente DIRETO do Supabase (não depende do localStorage do designer)
   useEffect(() => {
     if (!clienteId) { setLoading(false); return; }
     async function buscar() {
@@ -2254,8 +2347,10 @@ function FormularioPedido({ setDemandas, setTasks }) {
             .select("*")
             .eq("id", clienteId)
             .single();
+          // aceita qualquer lead com esse ID (categoria pode não estar migrada ainda)
           setCliente(data || null);
         } else {
+          // Supabase não configurado
           setCliente(null);
         }
       } catch(e) {
@@ -2279,9 +2374,11 @@ function FormularioPedido({ setDemandas, setTasks }) {
       cliente_id: cliente.id,
       data_criacao: new Date().toISOString().split("T")[0],
     };
+    // Salva direto no Supabase (fonte da verdade para o designer ver)
     if (dbReady) {
       try { await supabase.from("demandas").insert([{ ...nova, id: undefined }]); } catch(e) {}
     }
+    // Atualiza estado local também (se o designer estiver com o app aberto)
     if (setDemandas) setDemandas(ds => [...ds, nova]);
     setEnviado(true);
   };
@@ -2315,6 +2412,7 @@ function FormularioPedido({ setDemandas, setTasks }) {
   return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
       <div style={{ width:"100%", maxWidth:520 }}>
+        {/* Header */}
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ width:60, height:60, borderRadius:16, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:26, fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif" }}>
             {cliente.name.charAt(0)}
@@ -2323,6 +2421,7 @@ function FormularioPedido({ setDemandas, setTasks }) {
           <p style={{ color:C.muted, fontSize:14, margin:0 }}>Olá, {cliente.name.split(" ")[0]}! Preencha os dados do seu pedido.</p>
         </div>
 
+        {/* Formulário */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:28 }}>
           <div style={{ marginBottom:18 }}>
             <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>Título do pedido *</label>
@@ -2360,15 +2459,17 @@ function FormularioPedido({ setDemandas, setTasks }) {
 function Kanban({ demandas, setDemandas, leads }) {
   const [dragId,    setDragId]    = useState(null);
   const [dragOver,  setDragOver]  = useState(null);
-  const [modalCard, setModalCard] = useState(null);
+  const [modalCard, setModalCard] = useState(null); // demanda selecionada
   const [filterCli, setFilterCli] = useState("todos");
-  const [notaEdit,  setNotaEdit]  = useState("");
+  const [notaEdit,  setNotaEdit]  = useState("");    // nota_designer editing
   const [notaSaved, setNotaSaved] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
 
+  // Clientes ativos para filtro
   const clientes = leads.filter(l => l.categoria === "cliente_fixo");
 
+  // Demandas filtradas
   const demandasFiltradas = filterCli === "todos"
     ? demandas
     : demandas.filter(d => String(d.cliente_id) === String(filterCli));
@@ -2377,6 +2478,7 @@ function Kanban({ demandas, setDemandas, leads }) {
     setDemandas(ds => ds.map(d => d.id === id ? { ...d, status: novoStatus } : d));
   };
 
+  // Drag handlers
   const onDragStart = (e, id) => {
     setDragId(id);
     e.dataTransfer.effectAllowed = "move";
@@ -2399,6 +2501,7 @@ function Kanban({ demandas, setDemandas, leads }) {
 
   return (
     <div style={{ padding:"28px 32px", height:"calc(100vh - 54px)", display:"flex", flexDirection:"column" }}>
+      {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexShrink:0 }}>
         <div>
           <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:0 }}>🗂 Kanban</h1>
@@ -2406,6 +2509,7 @@ function Kanban({ demandas, setDemandas, leads }) {
             {demandas.length} demanda{demandas.length!==1?"s":""} · {demandas.filter(d=>isAtrasado(d)).length} atrasada{demandas.filter(d=>isAtrasado(d)).length!==1?"s":""}
           </p>
         </div>
+        {/* Filtro por cliente */}
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ color:C.muted, fontSize:12 }}>Cliente:</span>
           <select value={filterCli} onChange={e=>setFilterCli(e.target.value)}
@@ -2416,6 +2520,7 @@ function Kanban({ demandas, setDemandas, leads }) {
         </div>
       </div>
 
+      {/* Colunas */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, flex:1, minHeight:0, overflowX:"auto" }}>
         {KANBAN_COLS.map(col => {
           const cfg = STATUS_DEMANDA[col];
@@ -2429,6 +2534,7 @@ function Kanban({ demandas, setDemandas, leads }) {
               onDragLeave={() => setDragOver(null)}
               style={{ display:"flex", flexDirection:"column", background:isOver?`${cfg.color}10`:C.surface, border:`1px solid ${isOver?cfg.color:C.border}`, borderRadius:14, transition:"all 0.15s", minWidth:200 }}>
 
+              {/* Cabeçalho da coluna */}
               <div style={{ padding:"14px 16px 10px", borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:7 }}>
@@ -2437,11 +2543,13 @@ function Kanban({ demandas, setDemandas, leads }) {
                   </div>
                   <span style={{ background:`${cfg.color}20`, color:cfg.color, fontSize:11, fontWeight:700, padding:"2px 9px", borderRadius:99 }}>{cards.length}</span>
                 </div>
+                {/* Barra de progresso */}
                 <div style={{ marginTop:8, height:2, background:C.border, borderRadius:99 }}>
                   <div style={{ height:2, background:cfg.color, borderRadius:99, width:demandas.length>0?`${Math.round((cards.length/Math.max(demandas.length,1))*100)}%`:"0%", transition:"width 0.3s" }}/>
                 </div>
               </div>
 
+              {/* Cards */}
               <div style={{ flex:1, overflowY:"auto", padding:"10px 10px", display:"flex", flexDirection:"column", gap:8 }}>
                 {cards.length === 0 && (
                   <div style={{ textAlign:"center", padding:"20px 0", color:C.muted, fontSize:12, opacity:0.6 }}>
@@ -2472,6 +2580,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                         userSelect: "none",
                       }}>
 
+                      {/* Título + alerta */}
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6, gap:6 }}>
                         <span style={{ color:C.text, fontWeight:700, fontSize:13, lineHeight:1.4 }}>{d.titulo}</span>
                         {atrasado && (
@@ -2479,6 +2588,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                         )}
                       </div>
 
+                      {/* Cliente */}
                       {cliente && (
                         <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:7 }}>
                           <div style={{ width:18, height:18, borderRadius:5, background:`linear-gradient(135deg,${C.teal}50,${C.accentGlow}50)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, color:C.teal, flexShrink:0 }}>
@@ -2488,12 +2598,14 @@ function Kanban({ demandas, setDemandas, leads }) {
                         </div>
                       )}
 
+                      {/* Tag */}
                       {d.tag && (
                         <div style={{ marginBottom:7 }}>
                           <span style={{ background:`${C.accent}15`, color:C.accent, fontSize:10, padding:"2px 8px", borderRadius:99, fontWeight:600 }}>{d.tag}</span>
                         </div>
                       )}
 
+                      {/* Prazo */}
                       {d.prazo && (
                         <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:4 }}>
                           <span style={{ fontSize:11 }}>📅</span>
@@ -2509,13 +2621,14 @@ function Kanban({ demandas, setDemandas, leads }) {
                         </div>
                       )}
 
+                      {/* Botões mover */}
                       <div style={{ display:"flex", gap:4, marginTop:9, paddingTop:8, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
                         {KANBAN_COLS.filter(k => k !== col).map(k => {
                           const v = STATUS_DEMANDA[k];
                           const idx = KANBAN_COLS.indexOf(k);
                           const cur = KANBAN_COLS.indexOf(col);
                           const isNext = idx === cur + 1;
-                          if (!isNext && idx !== cur - 1) return null;
+                          if (!isNext && idx !== cur - 1) return null; // só próxima e anterior
                           return (
                             <button key={k} onClick={e => { e.stopPropagation(); mover(d.id, k); }}
                               style={{ background:`${v.color}15`, border:`1px solid ${v.color}30`, borderRadius:6, padding:"3px 8px", color:v.color, fontSize:10, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:3 }}>
@@ -2533,6 +2646,7 @@ function Kanban({ demandas, setDemandas, leads }) {
         })}
       </div>
 
+      {/* Modal detalhe do card */}
       {modalCard && (() => {
         const d = demandas.find(x => x.id === modalCard.id) || modalCard;
         const cliente = getCliente(d.cliente_id);
@@ -2541,6 +2655,7 @@ function Kanban({ demandas, setDemandas, leads }) {
         return (
           <div onClick={()=>setModalCard(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div onClick={e=>e.stopPropagation()} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:"100%", maxWidth:480 }}>
+              {/* Header */}
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
                 <div style={{ flex:1 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
@@ -2552,6 +2667,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                 <button onClick={()=>setModalCard(null)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4, marginLeft:8 }}><Ico n="close" s={18}/></button>
               </div>
 
+              {/* Info */}
               <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:20 }}>
                 {cliente && (
                   <div style={{ display:"flex", alignItems:"center", gap:10, background:C.surface, borderRadius:10, padding:"10px 14px" }}>
@@ -2582,7 +2698,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                       <div style={{ color:C.muted, fontSize:11, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.07em" }}>Prazo</div>
                       <div style={{ color:atrasado?C.red:C.text, fontWeight:700, fontSize:14 }}>📅 {d.prazo}</div>
                     </div>
-                 )}
+                  )}
                   {d.valor > 0 && (
                     <div style={{ background:C.surface, borderRadius:10, padding:"10px 14px" }}>
                       <div style={{ color:C.muted, fontSize:11, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.07em" }}>Valor</div>
@@ -2592,6 +2708,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                 </div>
               </div>
 
+              {/* Nota do designer */}
               <div style={{ marginBottom:16 }}>
                 <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>
                   📝 Nota / Detalhamento de cobrança
@@ -2602,7 +2719,14 @@ function Kanban({ demandas, setDemandas, leads }) {
                 <textarea
                   value={notaEdit}
                   onChange={e => { setNotaEdit(e.target.value); setNotaSaved(false); }}
-                  placeholder={`Ex:\nMATERIAL: https://drive.google.com/...\nDETALHAMENTO:\n• Banner principal – R$ 70\nTOTAL: R$ 70`}
+                  placeholder={"Ex:
+MATERIAL: https://drive.google.com/...
+
+DETALHAMENTO:
+• Banner principal (7 artes) – R$ 70,00
+• Banner checkout (1 arte) – R$ 10,00
+
+TOTAL: R$ 80,00"}
                   rows={5}
                   style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"10px 12px", color:C.text, fontSize:12, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}
                 />
@@ -2622,6 +2746,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                 </div>
               </div>
 
+              {/* Mover para */}
               <div>
                 <div style={{ color:C.muted, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Mover para</div>
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
@@ -2644,9 +2769,14 @@ function Kanban({ demandas, setDemandas, leads }) {
   );
 }
 
+
+
+
 // ══════════════════════════════════════════════════════════════════════════════
 // PORTAL PÚBLICO — DESIGN CLARO E MODERNO
 // ══════════════════════════════════════════════════════════════════════════════
+
+// ─── Página pública: cliente solicita demanda ──────────────────────────────
 function SolicitarPage() {
   const params = new URLSearchParams(window.location.search);
   const clienteId   = params.get("solicitar");
@@ -2690,6 +2820,7 @@ function SolicitarPage() {
         input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.6); }
       `}</style>
 
+      {/* Header */}
       <div style={{ background:"#fff", borderBottom:"1px solid #f0f0f6", padding:"16px 28px", display:"flex", alignItems:"center", gap:11 }}>
         <div style={{ width:34, height:34, borderRadius:10, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center" }}>
           <span style={{ color:"#fff", fontWeight:900, fontSize:15 }}>F</span>
@@ -2751,17 +2882,611 @@ function SolicitarPage() {
                 rows={2} style={{...S.inp("ref"), resize:"vertical"}}/>
             </div>
             <div style={{ marginBottom:24 }}>
-              <label style={S.label}>Observações (opcional)</label>
+              <label style={S.label}>Observações adicionais</label>
               <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))}
                 onFocus={()=>setFocused("obs")} onBlur={()=>setFocused(null)}
-                placeholder="Mais algum detalhe importante?"
+                placeholder="Qualquer detalhe extra que queira comunicar..."
                 rows={2} style={{...S.inp("obs"), resize:"vertical"}}/>
             </div>
-            
-            <button onClick={enviar} disabled={loading}
-              style={{ width:"100%", background:"linear-gradient(135deg,#7c3aed,#6d28d9)", border:"none", borderRadius:10, padding:"15px", color:"#fff", fontSize:14, fontWeight:700, cursor:loading?"wait":"pointer", transition:"all 0.2s", boxShadow:"0 4px 16px rgba(124, 58, 237, 0.3)", opacity:loading?0.7:1 }}>
-              {loading ? "Enviando..." : "Enviar solicitação"}
+            <button onClick={enviar} disabled={!form.descricao.trim() || loading}
+              style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#f3f4f6":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:12, padding:"14px", color:(!form.descricao.trim()||loading)?"#9ca3af":"#fff", fontSize:15, fontWeight:700, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:10, boxShadow:(!form.descricao.trim()||loading)?"none":"0 4px 20px #6d28d930", transition:"all 0.2s" }}>
+              {loading ? "Enviando..." : <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Enviar solicitação
+              </>}
             </button>
+          </div>
+          <div style={{ textAlign:"center", color:"#d1d5db", fontSize:11, marginTop:20 }}>Powered by FluxioHUB</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Página pública: portal do cliente ────────────────────────────────────────
+function PortalPublicoPage() {
+  const params      = new URLSearchParams(window.location.search);
+  const clienteId   = params.get("portal");
+  const clienteNome = params.get("nome") || "Cliente";
+  const firstName   = clienteNome.split(" ")[0];
+  const [solic, setSolic]       = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [acao, setAcao]         = useState({});
+  const [ajusteText, setAjusteText] = useState({});
+  const [sending, setSending]   = useState({});
+
+  const carregar = async () => {
+    try {
+      const { data } = await supabase.from("solicitacoes").select("*").order("created_at", { ascending:false });
+      setSolic((data||[]).filter(s => String(s.cliente_id)===String(clienteId) || String(s.cliente_id)===String(Number(clienteId))));
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); const t = setInterval(carregar, 15000); return ()=>clearInterval(t); }, []);
+
+  async function aprovar(id) {
+    setSending(s=>({...s,[id]:true}));
+    await supabase.from("solicitacoes").update({ status:"finalizado" }).eq("id", id);
+    setSolic(p=>p.map(s=>s.id===id?{...s,status:"finalizado"}:s));
+    setAcao(a=>({...a,[id]:null})); setSending(s=>({...s,[id]:false}));
+  }
+  async function pedirAjuste(id) {
+    const obs = ajusteText[id]||""; if (!obs.trim()) return;
+    setSending(s=>({...s,[id]:"aj"}));
+    await supabase.from("solicitacoes").update({ status:"ajustes", resposta_designer:`[Ajuste solicitado]: ${obs}` }).eq("id", id);
+    setSolic(p=>p.map(s=>s.id===id?{...s,status:"ajustes",resposta_designer:`[Ajuste solicitado]: ${obs}`}:s));
+    setAcao(a=>({...a,[id]:null})); setAjusteText(t=>({...t,[id]:""})); setSending(s=>({...s,[id]:false}));
+  }
+
+  const ST = {
+    pendente:   { label:"Recebido",              color:"#6366f1", bg:"#f0f0ff", step:0 },
+    triagem:    { label:"Em triagem",            color:"#0891b2", bg:"#ecfeff", step:1 },
+    agenda:     { label:"Agendado",              color:"#7c3aed", bg:"#f5f3ff", step:1 },
+    em_criacao: { label:"Em criação",            color:"#7c3aed", bg:"#f5f3ff", step:2 },
+    revisao:    { label:"Em revisão",            color:"#0369a1", bg:"#e0f2fe", step:3 },
+    aprovacao:  { label:"Aguarda sua aprovação", color:"#d97706", bg:"#fffbeb", step:4 },
+    ajustes:    { label:"Ajustes em andamento",  color:"#dc2626", bg:"#fef2f2", step:2 },
+    finalizado: { label:"Concluído ✓",           color:"#059669", bg:"#f0fdf4", step:5 },
+    cancelado:  { label:"Cancelado",             color:"#6b7280", bg:"#f9fafb", step:0 },
+  };
+  const STEPS = ["Recebido","Análise","Produção","Revisão","Aprovação","Concluído"];
+
+  const total      = solic.length;
+  const andamento  = solic.filter(s=>!["finalizado","cancelado","pendente"].includes(s.status)).length;
+  const aguardando = solic.filter(s=>s.status==="aprovacao").length;
+
+  const fmtD = (dt) => { try { return new Date(dt.includes("T")?dt:dt+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"}); } catch { return dt; } };
+
+  const S = {
+    page:  { minHeight:"100vh", background:"#f7f8fc", fontFamily:"'Plus Jakarta Sans','DM Sans',sans-serif" },
+    card:  { background:"#fff", borderRadius:20, boxShadow:"0 2px 16px rgba(100,80,200,0.07), 0 1px 4px rgba(0,0,0,0.04)", overflow:"hidden" },
+    pill:  (cfg) => ({ display:"inline-flex", alignItems:"center", gap:5, background:cfg.bg, color:cfg.color, fontSize:12, fontWeight:700, padding:"5px 12px", borderRadius:20 }),
+  };
+
+  return (
+    <div style={S.page}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { background:#f7f8fc; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+        @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.7} }
+        ::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:99px; }
+        input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.6); }
+      `}</style>
+
+      {/* ── HEADER ── */}
+      <div style={{ background:"#fff", borderBottom:"1px solid #f0f0f6", padding:"18px 32px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+          <div style={{ width:48, height:48, borderRadius:14, background:"linear-gradient(135deg,#6d28d9,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:"0 4px 14px #6d28d925" }}>
+            <span style={{ color:"#fff", fontWeight:900, fontSize:20 }}>{firstName.charAt(0).toUpperCase()}</span>
+          </div>
+          <div>
+            <div style={{ color:"#9ca3af", fontSize:12, marginBottom:1 }}>Olá, seja bem-vindo(a) 👋</div>
+            <div style={{ color:"#111827", fontWeight:800, fontSize:20 }}>{clienteNome}</div>
+          </div>
+        </div>
+        <button onClick={()=>setShowForm(f=>!f)}
+          style={{ background:showForm?"#f3f4f6":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:11, padding:"10px 20px", color:showForm?"#6b7280":"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:showForm?"none":"0 4px 14px #6d28d925", display:"flex", alignItems:"center", gap:7, transition:"all 0.2s" }}>
+          {showForm
+            ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Cancelar</>
+            : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nova solicitação</>
+          }
+        </button>
+      </div>
+
+      <div style={{ maxWidth:800, margin:"0 auto", padding:"32px 20px" }}>
+
+        {/* ── STATS ── */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:28, animation:"fadeUp 0.3s ease" }}>
+          {[
+            { label:"Total de pedidos", v:total,      color:"#7c3aed", light:"#f5f3ff", Icon:()=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> },
+            { label:"Em andamento",     v:andamento,  color:"#0891b2", light:"#ecfeff", Icon:()=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> },
+            { label:"Aguardando você",  v:aguardando, color:"#d97706", light:"#fffbeb", pulse:true, Icon:()=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
+          ].map(st=>(
+            <div key={st.label} style={{ background:"#fff", borderRadius:18, padding:"18px 20px", boxShadow:`0 2px 16px rgba(100,80,200,0.06)`, border:`1.5px solid ${st.pulse&&aguardando>0?"#fcd34d":"#f0f0f6"}`, position:"relative", overflow:"hidden" }}>
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${st.color}60,${st.color})`, borderRadius:"18px 18px 0 0" }}/>
+              <div style={{ width:38, height:38, borderRadius:10, background:st.light, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:12 }}><st.Icon/></div>
+              <div style={{ color:st.color, fontSize:32, fontWeight:800, lineHeight:1, marginBottom:4 }}>{st.v}</div>
+              <div style={{ color:"#9ca3af", fontSize:12 }}>{st.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── FORM ── */}
+        {showForm && (
+          <div style={{ background:"#fff", borderRadius:20, padding:24, marginBottom:24, boxShadow:"0 2px 16px rgba(100,80,200,0.07)", border:"1.5px solid #ede9fe", animation:"fadeUp 0.3s ease" }}>
+            <div style={{ color:"#111827", fontWeight:700, fontSize:16, marginBottom:18 }}>Nova solicitação</div>
+            <SolicitarFormInline clienteId={clienteId} clienteNome={clienteNome} onEnviado={()=>{setShowForm(false);carregar();}}/>
+          </div>
+        )}
+
+        {/* ── ALERTA APROVAÇÃO ── */}
+        {aguardando > 0 && (
+          <div style={{ background:"#fffbeb", border:"1.5px solid #fcd34d", borderRadius:16, padding:"14px 20px", marginBottom:22, display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ width:40, height:40, borderRadius:11, background:"#fef3c7", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div>
+              <div style={{ color:"#92400e", fontWeight:700, fontSize:14 }}>{aguardando} projeto{aguardando>1?"s":""} aguardando sua aprovação</div>
+              <div style={{ color:"#b45309", fontSize:12, marginTop:2 }}>Role para baixo para revisar e aprovar.</div>
+            </div>
+          </div>
+        )}
+
+        {/* ── LOADING ── */}
+        {loading && <div style={{ textAlign:"center", padding:80, color:"#d1d5db" }}>Carregando...</div>}
+
+        {/* ── EMPTY ── */}
+        {!loading && solic.length===0 && (
+          <div style={{ textAlign:"center", padding:"60px 20px" }}>
+            <div style={{ width:64, height:64, borderRadius:18, background:"#f3f4f6", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            </div>
+            <div style={{ color:"#374151", fontSize:16, fontWeight:600, marginBottom:6 }}>Nenhuma solicitação ainda</div>
+            <div style={{ color:"#9ca3af", fontSize:13 }}>Clique em "+ Nova solicitação" para enviar seu pedido.</div>
+          </div>
+        )}
+
+        {/* ── LISTA ── */}
+        {!loading && solic.length>0 && (
+          <div>
+            <div style={{ color:"#9ca3af", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:14 }}>Suas solicitações · {solic.length}</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              {solic.map((s,idx)=>{
+                const cfg = ST[s.status]||ST.pendente;
+                const isAprov = s.status==="aprovacao";
+                const isDone  = s.status==="finalizado";
+                const curStep = cfg.step;
+
+                return (
+                  <div key={s.id} style={{ ...S.card, border:`1.5px solid ${isAprov?"#fcd34d":isDone?"#a7f3d0":"#f0f0f6"}`, animation:`fadeUp ${0.1+idx*0.05}s ease` }}>
+                    {/* Top color bar */}
+                    <div style={{ height:4, background:`linear-gradient(90deg,${cfg.color},${cfg.color}60)` }}/>
+
+                    <div style={{ padding:"20px 22px" }}>
+                      {/* Title + badge */}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:14 }}>
+                        <div>
+                          <div style={{ color:"#111827", fontWeight:800, fontSize:18, marginBottom:4 }}>{s.tipo||"Solicitação"}</div>
+                          <div style={{ color:"#9ca3af", fontSize:12 }}>Enviado em {fmtD(s.created_at)}</div>
+                        </div>
+                        <span style={S.pill(cfg)}>{cfg.label}</span>
+                      </div>
+
+                      {/* Progress steps */}
+                      {s.status!=="cancelado" && (
+                        <div style={{ marginBottom:16 }}>
+                          <div style={{ display:"flex", alignItems:"center" }}>
+                            {STEPS.map((step,i)=>{
+                              const done   = curStep>i||isDone;
+                              const active = curStep===i&&!isDone;
+                              return (
+                                <React.Fragment key={i}>
+                                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, flexShrink:0 }}>
+                                    <div style={{ width:28, height:28, borderRadius:"50%", background:done?cfg.color:active?cfg.bg:"#f3f4f6", border:`2px solid ${done||active?cfg.color:"#e5e7eb"}`, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.3s" }}>
+                                      {done
+                                        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                        : <div style={{ width:7, height:7, borderRadius:"50%", background:active?cfg.color:"#d1d5db" }}/>
+                                      }
+                                    </div>
+                                    <span style={{ color:done||active?cfg.color:"#9ca3af", fontSize:9, fontWeight:active?700:500, whiteSpace:"nowrap" }}>{step}</span>
+                                  </div>
+                                  {i<STEPS.length-1&&<div style={{ flex:1, height:2, background:done?cfg.color:"#e5e7eb", marginBottom:14, transition:"background 0.3s" }}/>}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Descrição */}
+                      {s.descricao && (
+                        <div style={{ background:"#f9fafb", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+                          <div style={{ color:"#6b7280", fontSize:13, lineHeight:1.7 }}>{s.descricao}</div>
+                        </div>
+                      )}
+
+                      {/* Observações do cliente */}
+                      {s.observacoes && (
+                        <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, padding:"10px 14px", marginBottom:10 }}>
+                          <div style={{ color:"#15803d", fontSize:11, fontWeight:700, marginBottom:4 }}>💬 Suas observações</div>
+                          <div style={{ color:"#374151", fontSize:13, lineHeight:1.6 }}>{s.observacoes}</div>
+                        </div>
+                      )}
+
+                      {/* Prazo */}
+                      {s.prazo && (
+                        <div style={{ display:"inline-flex", alignItems:"center", gap:7, background:"#f3f4f6", borderRadius:8, padding:"5px 12px", marginBottom:10 }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          <span style={{ color:"#6b7280", fontSize:12 }}>Prazo:</span>
+                          <span style={{ color:"#374151", fontSize:12, fontWeight:600 }}>{fmtD(s.prazo)}</span>
+                        </div>
+                      )}
+
+                      {/* Mensagem do designer */}
+                      {s.resposta_designer && !s.resposta_designer.startsWith("[Ajuste") && (
+                        <div style={{ background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:12, padding:"14px 16px", marginBottom:14 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:8 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            <span style={{ color:"#7c3aed", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em" }}>Mensagem do designer</span>
+                          </div>
+                          <div style={{ color:"#374151", fontSize:13, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{s.resposta_designer}</div>
+                        </div>
+                      )}
+
+                      {/* ── APROVAÇÃO ── */}
+                      {isAprov && !acao[s.id] && (
+                        <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #f0f0f6" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+                            <div style={{ width:34, height:34, borderRadius:9, background:"#fffbeb", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                            </div>
+                            <div>
+                              <div style={{ color:"#111827", fontSize:14, fontWeight:700 }}>O que você acha?</div>
+                              <div style={{ color:"#6b7280", fontSize:12 }}>Revise o projeto e nos dê seu retorno</div>
+                            </div>
+                          </div>
+                          <div style={{ display:"flex", gap:10 }}>
+                            <button onClick={()=>aprovar(s.id)} disabled={sending[s.id]}
+                              style={{ flex:1, background:"linear-gradient(135deg,#059669,#10b981)", border:"none", borderRadius:11, padding:"13px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 14px #10b98125" }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                              {sending[s.id]?"Aprovando...":"Aprovar projeto"}
+                            </button>
+                            <button onClick={()=>setAcao(a=>({...a,[s.id]:"aj"}))}
+                              style={{ flex:1, background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:11, padding:"13px", color:"#dc2626", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                              Solicitar ajustes
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Form ajuste */}
+                      {isAprov && acao[s.id]==="aj" && (
+                        <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #f0f0f6", animation:"fadeUp 0.2s ease" }}>
+                          <label style={{ display:"block", color:"#374151", fontSize:14, fontWeight:600, marginBottom:10 }}>O que precisa ser ajustado?</label>
+                          <textarea value={ajusteText[s.id]||""} onChange={e=>setAjusteText(t=>({...t,[s.id]:e.target.value}))}
+                            placeholder="Descreva o que gostaria de mudar em detalhes..."
+                            rows={4}
+                            style={{ width:"100%", background:"#fafafa", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"12px 14px", color:"#111827", fontSize:13, outline:"none", fontFamily:"inherit", resize:"vertical", lineHeight:1.7, boxSizing:"border-box", marginBottom:12 }}
+                            onFocus={e=>e.target.style.borderColor="#7c3aed"} onBlur={e=>e.target.style.borderColor="#e5e7eb"}
+                          />
+                          <div style={{ display:"flex", gap:10 }}>
+                            <button onClick={()=>pedirAjuste(s.id)} disabled={!ajusteText[s.id]?.trim()||sending[s.id]==="aj"}
+                              style={{ flex:1, background:!ajusteText[s.id]?.trim()?"#f3f4f6":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"11px", color:!ajusteText[s.id]?.trim()?"#9ca3af":"#fff", fontSize:14, fontWeight:700, cursor:!ajusteText[s.id]?.trim()?"not-allowed":"pointer", fontFamily:"inherit" }}>
+                              {sending[s.id]==="aj"?"Enviando...":"Enviar feedback"}
+                            </button>
+                            <button onClick={()=>setAcao(a=>({...a,[s.id]:null}))}
+                              style={{ background:"none", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"11px 18px", color:"#6b7280", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                              Voltar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Concluído */}
+                      {isDone && (
+                        <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:10, background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, padding:"11px 16px" }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          <span style={{ color:"#059669", fontSize:13, fontWeight:600 }}>Projeto aprovado e concluído!</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div style={{ textAlign:"center", color:"#e5e7eb", fontSize:11, marginTop:40, paddingBottom:20 }}>Powered by FluxioHUB</div>
+      </div>
+    </div>
+  );
+}
+
+// Form inline reutilizável para o portal
+function SolicitarFormInline({ clienteId, clienteNome, onEnviado }) {
+  const [form, setForm]   = useState({ tipo:"", descricao:"", prazo:"", referencias:"", observacoes:"" });
+  const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState(null);
+  const inp = (f) => ({ background:focused===f?"#fff":"#fafafa", border:`1.5px solid ${focused===f?"#7c3aed":"#e5e7eb"}`, borderRadius:9, padding:"10px 13px", color:"#111827", fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", transition:"all 0.2s" });
+  const ta = (f, rows=3) => ({...inp(f), resize:"vertical", lineHeight:1.6, minHeight:rows*22+20});
+
+  async function enviar() {
+    if (!form.descricao.trim()) return;
+    setLoading(true);
+    try {
+      await supabase.from("solicitacoes").insert([{ id:Date.now(), cliente_id:clienteId, cliente_nome:clienteNome, ...form, status:"pendente", created_at:new Date().toISOString() }]);
+      onEnviado();
+    } catch { alert("Erro ao enviar. Tente novamente."); }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div>
+        <label style={{ display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Tipo</label>
+        <input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} onFocus={()=>setFocused("tipo")} onBlur={()=>setFocused(null)} placeholder="Ex: Post, Logo, Banner..." style={inp("tipo")}/>
+      </div>
+      <div>
+        <label style={{ display:"flex", alignItems:"center", gap:6, color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+          Descrição <span style={{ background:"#f3eeff", color:"#7c3aed", fontSize:10, padding:"1px 6px", borderRadius:20, textTransform:"none", letterSpacing:0 }}>obrigatório</span>
+        </label>
+        <textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} onFocus={()=>setFocused("desc")} onBlur={()=>setFocused(null)} placeholder="O que precisa ser criado?" style={ta("desc",4)}/>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        <div>
+          <label style={{ display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Prazo</label>
+          <input type="date" value={form.prazo} onChange={e=>setForm(f=>({...f,prazo:e.target.value}))} onFocus={()=>setFocused("prazo")} onBlur={()=>setFocused(null)} style={inp("prazo")}/>
+        </div>
+        <div>
+          <label style={{ display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Referências</label>
+          <input value={form.referencias} onChange={e=>setForm(f=>({...f,referencias:e.target.value}))} onFocus={()=>setFocused("ref")} onBlur={()=>setFocused(null)} placeholder="Links..." style={inp("ref")}/>
+        </div>
+      </div>
+      <div>
+        <label style={{ display:"block", color:"#6b7280", fontSize:11, fontWeight:700, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Observações</label>
+        <textarea value={form.observacoes} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))} onFocus={()=>setFocused("obs")} onBlur={()=>setFocused(null)} placeholder="Algum detalhe extra..." style={ta("obs",2)}/>
+      </div>
+      <button onClick={enviar} disabled={!form.descricao.trim()||loading}
+        style={{ width:"100%", background:(!form.descricao.trim()||loading)?"#f3f4f6":"linear-gradient(135deg,#6d28d9,#a78bfa)", border:"none", borderRadius:10, padding:"12px", color:(!form.descricao.trim()||loading)?"#9ca3af":"#fff", fontSize:14, fontWeight:700, cursor:(!form.descricao.trim()||loading)?"not-allowed":"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:(!form.descricao.trim()||loading)?"none":"0 4px 14px #6d28d925" }}>
+        {loading?"Enviando...":"📤 Enviar"}
+      </button>
+    </div>
+  );
+}
+
+
+function PortalCliente({ leads, setDemandas }) {
+  const clientes = leads.filter(l=>l.categoria==="cliente_fixo");
+  const [selCli, setSelCli] = useState("");
+  const [solic, setSolic] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [resposta, setResposta] = useState("");
+  const [novoStatus, setNovoStatus] = useState("");
+  const [kanbanIds, setKanbanIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}"); } catch { return {}; }
+  });
+  const [filtroData, setFiltroData] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("");
+  const cliente = clientes.find(c=>String(c.id)===selCli);
+
+  const carregarSolic = useCallback(() => {
+    if (!selCli) return;
+    setLoading(true);
+    supabase.from("solicitacoes")
+      .select("*")
+      .order("created_at", { ascending:false })
+      .then(({ data }) => {
+        const filtered = (data||[]).filter(s =>
+          String(s.cliente_id) === String(selCli) ||
+          String(s.cliente_id) === String(Number(selCli))
+        );
+        setSolic(filtered);
+        setLoading(false);
+      });
+  }, [selCli]);
+
+  useEffect(() => {
+    carregarSolic();
+    const interval = setInterval(carregarSolic, 10000);
+    const handler = () => setTimeout(carregarSolic, 300);
+    window.addEventListener("solic_changed", handler);
+    return () => { clearInterval(interval); window.removeEventListener("solic_changed", handler); };
+  }, [carregarSolic]);
+
+  async function salvarResposta(id) {
+    await supabase.from("solicitacoes").update({ status:novoStatus, resposta_designer:resposta }).eq("id", id);
+    if (novoStatus === "aprovacao" && kanbanIds[id]) {
+      const demLocal = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
+      const updated = demLocal.map(d => d.id === kanbanIds[id] ? {...d, status:"aprovacao"} : d);
+      localStorage.setItem("dh_demandas", JSON.stringify(updated));
+      setDemandas(updated);
+    }
+    setSolic(prev => prev.map(s => s.id===id ? {...s, status:novoStatus, resposta_designer:resposta} : s));
+    setEditId(null);
+  }
+
+  function addToKanban(s) {
+    const newId = Date.now();
+    const demanda = {
+      id: newId,
+      titulo: s.tipo || "Solicitação do cliente",
+      descricao: [s.descricao, s.referencias && ("Refs: "+s.referencias), s.observacoes && ("Obs cliente: "+s.observacoes)].filter(Boolean).join(" | "),
+      prazo: s.prazo || "",
+      valor: 0,
+      status: "triagem",
+      cliente_id: Number(s.cliente_id) || null,
+      tag: s.tipo || "Solicitação",
+      solicitacao_id: s.id,
+      data_criacao: new Date().toISOString().split("T")[0],
+    };
+    setDemandas(prev => [...prev, demanda]);
+    const updated = {...kanbanIds, [s.id]: newId};
+    setKanbanIds(updated);
+    localStorage.setItem("dh_solic_kanban", JSON.stringify(updated));
+    supabase.from("solicitacoes").update({ status:"triagem" }).eq("id", String(s.id));
+    setSolic(prev => prev.map(x => x.id===s.id ? {...x, status:"triagem"} : x));
+    alert(`✅ Adicionado ao Kanban em Triagem!`);
+  }
+
+  const STATUS_CFG = {
+    pendente:     { label:"Aguardando",    color:"#f59e0b", icon:"⏳" },
+    triagem:      { label:"Triagem",       color:"#94a3b8", icon:"📥" },
+    agenda:       { label:"Agenda",        color:"#818cf8", icon:"📆" },
+    em_criacao:   { label:"Em criação",    color:"#a78bfa", icon:"✏️"  },
+    revisao:      { label:"Em revisão",    color:"#38bdf8", icon:"🔍" },
+    aprovacao:    { label:"Aprovação",     color:"#fb923c", icon:"👀" },
+    ajustes:      { label:"Ajustes",       color:"#ef4444", icon:"🔄" },
+    finalizado:   { label:"Finalizado",    color:"#10b981", icon:"✅" },
+    cancelado:    { label:"Cancelado",     color:"#64748b", icon:"❌" },
+  };
+  const statusOpts = Object.entries(STATUS_CFG).map(([v,c])=>({value:v, label:`${c.icon} ${c.label}`}));
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:820 }}>
+      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>📬 Solicitações dos Clientes</h1>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>Mova no Kanban → status atualiza aqui e no portal do cliente automaticamente.</p>
+
+      <Field label="Cliente" value={selCli} onChange={setSelCli} options={[{value:"",label:"Selecionar cliente..."},...clientes.map(c=>({value:String(c.id),label:c.name}))]}/>
+
+      {selCli && loading && <div style={{ color:C.muted, fontSize:13, padding:20 }}>Carregando...</div>}
+
+      {selCli && !loading && solic.length === 0 && (
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:30, textAlign:"center", color:C.muted }}>
+          <div style={{ fontSize:40, marginBottom:10 }}>📭</div>
+          <div>Nenhuma solicitação deste cliente ainda.</div>
+          <div style={{ fontSize:12, marginTop:6 }}>Compartilhe o link em "Links do Cliente" para que ele possa enviar.</div>
+        </div>
+      )}
+
+      {solic.length > 0 && (
+        <div>
+          <div style={{ display:"flex", gap:10, marginTop:12, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
+            <select value={filtroData} onChange={e=>setFiltroData(e.target.value)} style={{ background:C.card, border:`1px solid ${filtroData?C.accent:C.border}`, borderRadius:9, padding:"7px 12px", color:filtroData?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+              <option value="">📅 Todos os dias</option>
+              {[...new Set(solic.map(s=>(s.created_at||"").split("T")[0]))].sort().reverse().map(d=>(
+                <option key={d} value={d}>{new Date(d+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"numeric",month:"short"})}</option>
+              ))}
+            </select>
+            <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ background:C.card, border:`1px solid ${filtroStatus?C.accent:C.border}`, borderRadius:9, padding:"7px 12px", color:filtroStatus?C.accent:C.muted, fontSize:12, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+              <option value="">🏷 Todos os status</option>
+              {Object.entries(STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
+            </select>
+            {(filtroData||filtroStatus)&&<button onClick={()=>{setFiltroData("");setFiltroStatus("");}} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 12px", color:C.muted, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✕ Limpar</button>}
+            <span style={{ color:C.muted, fontSize:12, marginLeft:"auto" }}>{solic.filter(s=>(!filtroData||(s.created_at||"").startsWith(filtroData))&&(!filtroStatus||s.status===filtroStatus)).length} de {solic.length}</span>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {solic.filter(s=>(!filtroData||(s.created_at||"").startsWith(filtroData))&&(!filtroStatus||s.status===filtroStatus)).map(s => {
+            const cfg = STATUS_CFG[s.status] || STATUS_CFG.pendente;
+            const open = editId === s.id;
+            const jaNoKanban = !!kanbanIds[s.id];
+            return (
+              <div key={s.id} style={{ background:C.card, border:`1px solid ${open?C.accent:C.border}`, borderRadius:14, padding:"16px 20px", transition:"border-color .15s" }}>
+                {/* Header */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                  <div>
+                    <div style={{ color:C.text, fontWeight:700, fontSize:15 }}>{s.tipo || "Solicitação"}</div>
+                    <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{new Date(s.created_at).toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"})} · {s.cliente_nome}</div>
+                  </div>
+                  <span style={{ background:`${cfg.color}18`, color:cfg.color, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap" }}>{cfg.icon} {cfg.label}</span>
+                </div>
+
+                {/* Descrição */}
+                {s.descricao && <div style={{ color:C.muted, fontSize:13, lineHeight:1.6, marginBottom:8 }}>{s.descricao}</div>}
+
+                {/* Prazo + Referências */}
+                <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:8 }}>
+                  {s.prazo && (
+                    <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:C.surface, borderRadius:8, padding:"5px 10px" }}>
+                      <span style={{ fontSize:12 }}>📅</span>
+                      <span style={{ color:C.muted, fontSize:12 }}>Prazo: </span>
+                      <span style={{ color:C.text, fontSize:12, fontWeight:600 }}>{new Date(s.prazo+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"short",year:"numeric"})}</span>
+                    </div>
+                  )}
+                  {s.referencias && (
+                    <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:C.surface, borderRadius:8, padding:"5px 10px", maxWidth:320 }}>
+                      <span style={{ fontSize:12 }}>🔗</span>
+                      <span style={{ color:C.muted, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.referencias}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── OBSERVAÇÕES DO CLIENTE (novo) ── */}
+                {s.observacoes && (
+                  <div style={{ background:`${C.teal}08`, border:`1px solid ${C.teal}25`, borderRadius:10, padding:"10px 14px", marginBottom:10 }}>
+                    <div style={{ color:C.teal, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>💬 Observações do cliente</div>
+                    <div style={{ color:C.text, fontSize:13, lineHeight:1.6 }}>{s.observacoes}</div>
+                  </div>
+                )}
+
+                {/* Nota/Resposta do designer */}
+                {s.resposta_designer && !open && (
+                  <div style={{ background:`${C.accent}0d`, border:`1px solid ${C.accent}25`, borderRadius:10, padding:"10px 14px", marginBottom:8 }}>
+                    <div style={{ color:C.accent, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>📝 Nota / Resposta visível ao cliente</div>
+                    <div style={{ color:C.text, fontSize:13, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{s.resposta_designer}</div>
+                  </div>
+                )}
+
+                {!open && (
+                  <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap", alignItems:"center" }}>
+                    {jaNoKanban && <span style={{ color:C.teal, fontSize:12, fontWeight:600 }}>✓ No Kanban</span>}
+                    {!jaNoKanban && s.status==="pendente" && (
+                      <button onClick={()=>addToKanban(s)}
+                        style={{ background:`${C.teal}15`, border:`1px solid ${C.teal}30`, borderRadius:8, padding:"6px 14px", color:C.teal, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        + Adicionar ao Kanban
+                      </button>
+                    )}
+                    <button onClick={()=>{setEditId(s.id);setResposta(s.resposta_designer||"");setNovoStatus(s.status);}}
+                      style={{ background:`${C.accent}18`, border:`1px solid ${C.accent}30`, borderRadius:8, padding:"6px 14px", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      ✏️ Responder / Nota
+                    </button>
+                    <button onClick={async ()=>{
+                      if (!window.confirm("Excluir esta solicitação?")) return;
+                      await supabase.from("solicitacoes").delete().eq("id", s.id);
+                      const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban")||"{}");
+                      const demandaId = kanbanMap[String(s.id)];
+                      if (demandaId) {
+                        delete kanbanMap[String(s.id)];
+                        localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+                        const demandasAtual = JSON.parse(localStorage.getItem("dh_demandas")||"[]");
+                        localStorage.setItem("dh_demandas", JSON.stringify(demandasAtual.filter(d=>String(d.id)!==String(demandaId))));
+                      }
+                      setSolic(prev => prev.filter(x => x.id !== s.id));
+                      window.dispatchEvent(new CustomEvent("solic_changed"));
+                    }} style={{ background:`${C.red}15`, border:`1px solid ${C.red}30`, borderRadius:8, padding:"6px 12px", color:C.red, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      🗑 Excluir
+                    </button>
+                  </div>
+                )}
+
+                {open && (
+                  <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+                    <Field label="Novo status" value={novoStatus} onChange={setNovoStatus} options={statusOpts}/>
+                    <div style={{ marginBottom:12 }}>
+                      <label style={{ display:"block", color:C.muted, fontSize:11, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                        📝 Nota de cobrança / Resposta para o cliente
+                      </label>
+                      <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}20`, borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:12, color:C.muted, lineHeight:1.5 }}>
+                        💡 Use este campo para anotar o detalhamento de valores cobrados e qualquer explicação sobre o projeto. <strong style={{ color:C.accent }}>O cliente verá esta mensagem no portal.</strong>
+                      </div>
+                      <textarea value={resposta} onChange={e=>setResposta(e.target.value)}
+                        placeholder={`Ex:\nMATERIAL: [link do drive]\n\nDETALHAMENTO:\n• Banner principal (7 artes) – R$ 70,00\n• Banner checkout (1 arte) – R$ 10,00\n\nTOTAL: R$ 80,00\n\nQualquer dúvida, estou à disposição!`}
+                        rows={6}
+                        style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 12px", color:C.text, fontSize:13, width:"100%", outline:"none", fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+                    </div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={()=>salvarResposta(s.id)} style={{ background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:8, padding:"8px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💾 Salvar</button>
+                      <button onClick={()=>setEditId(null)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 14px", color:C.muted, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           </div>
         </div>
       )}
@@ -2769,134 +3494,360 @@ function SolicitarPage() {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// COMPONENTE APP PRINCIPAL (CORREÇÃO 1)
-// ══════════════════════════════════════════════════════════════════════════════
+function LoginScreen({ onLogin }) {
+  const [user, setUser] = useState(""); 
+  const [pwd, setPwd] = useState(""); 
+  const [err, setErr] = useState("");
+  const tryLogin = () => {
+    if ((user.toLowerCase()==="admin"||user.toLowerCase()==="designer")&&pwd==="123456") { onLogin(user); }
+    else setErr("Usuário ou senha incorretos.");
+  };
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:"44px 42px", width:380, boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ textAlign:"center", marginBottom:34 }}>
+          <div style={{ width:56, height:56, borderRadius:18, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", boxShadow:`0 6px 20px ${C.accentGlow}50` }}><span style={{ fontSize:26, color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800 }}>F</span></div>
+          <div style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:24 }}>FluxioHUB</div>
+          <div style={{ color:C.muted, fontSize:13, marginTop:5 }}>Acesse sua conta</div>
+        </div>
+        <Field label="Usuário" value={user} onChange={setUser} placeholder="admin"/>
+        <Field label="Senha" value={pwd} onChange={setPwd} type="password" placeholder="••••••"/>
+        {err&&<div style={{ color:C.red, fontSize:12, marginBottom:14, textAlign:"center" }}>{err}</div>}
+        <button onClick={tryLogin} style={{ width:"100%", background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, border:"none", borderRadius:11, padding:"14px", color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"'Syne',sans-serif", letterSpacing:"0.04em", boxShadow:`0 4px 20px ${C.accentGlow}50`, marginBottom:16 }}>Entrar</button>
+        <div style={{ textAlign:"center", color:C.muted, fontSize:11, marginBottom:10 }}>Demo: admin / 123456</div>
+        <button onClick={()=>{ if(window.confirm("Limpar todos os dados locais e reiniciar?")){ localStorage.clear(); window.location.reload(); }}}
+          style={{ width:"100%", background:"none", border:`1px solid ${C.border}`, borderRadius:9, padding:"8px", color:C.muted, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+          🗑 Limpar cache local (se app travar)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError:false, error:null }; }
+  static getDerivedStateFromError(e) { return { hasError:true, error:e }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight:"100vh", background:"#080810", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"DM Sans,sans-serif", padding:40 }}>
+          <div style={{ textAlign:"center", maxWidth:480 }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>⚠️</div>
+            <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:20, marginBottom:8 }}>Algo deu errado</div>
+            <div style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{this.state.error?.message || "Erro desconhecido"}</div>
+            <button onClick={()=>{ localStorage.clear(); window.location.reload(); }}
+              style={{ background:"linear-gradient(135deg,#7c3aed,#a78bfa)", border:"none", borderRadius:10, padding:"12px 24px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+              🗑 Limpar cache e reiniciar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+
 export default function App() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("pedido"))    return <AprovarPage/>;
+  if (params.get("solicitar")) return <SolicitarPage/>;
+  if (params.get("portal"))    return <PortalPublicoPage/>;
+
+  const [loggedIn, setLoggedIn] = useLocalStorage("dh_loggedIn", false);
   const [theme, setTheme] = useLocalStorage("dh_theme", "dark");
-  const [view, setView] = useState("dashboard");
+  const [userName, setUserName] = useLocalStorage("dh_userName", "Designer");
+  const [userRole, setUserRole] = useLocalStorage("dh_userRole", "Designer Freelancer");
+  const [userAvatar, setUserAvatar] = useLocalStorage("dh_userAvatar", "");
   const [leads, setLeads] = useSyncedStorage("dh_leads", initLeads);
-  const [tasks, setTasks] = useSyncedStorage("dh_tasks", initTasks);
-  const [portfolio, setPortfolio] = useSyncedStorage("dh_portfolio", initPortfolio);
+  const [tasks, setTasks] = useLocalStorage("dh_tasks", initTasks);
+  const [portfolio, setPortfolio] = useLocalStorage("dh_portfolio", initPortfolio);
+  const [timerHistory, setTimerHistory] = useLocalStorage("dh_timer_history", initTimerHistory);
   const [demandas, setDemandas] = useSyncedStorage("dh_demandas", initDemandas);
-  const [timerHistory, setTimerHistory] = useSyncedStorage("dh_timer_history", initTimerHistory);
-  const [notes, setNotes] = useSyncedStorage("dh_notes", INIT_NOTES);
-  const [despesas, setDespesas] = useSyncedStorage("dh_despesas", []);
-  
-  const [userName, setUserName] = useLocalStorage("dh_user_name", "");
-  const [userRole, setUserRole] = useLocalStorage("dh_user_role", "Designer");
-  const [userAvatar, setUserAvatar] = useLocalStorage("dh_user_avatar", "");
+  const [notes, setNotes] = useLocalStorage("dh_notes", []);
+  const [despesas, setDespesas] = useLocalStorage("dh_despesas", []);
+  const [view, setView] = useState(() => localStorage.getItem("dh_view") || "dashboard");
+  const [sideOpen, setSideOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+
+  // Boot sync from Supabase
+  useEffect(() => {
+    async function bootSync() {
+      try {
+        const leadsLocal = JSON.parse(localStorage.getItem("dh_leads") || "[]");
+        const demandasLocal = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
+        const needLeads = !Array.isArray(leadsLocal) || leadsLocal.length === 0;
+        const needDemandas = !Array.isArray(demandasLocal) || demandasLocal.length === 0;
+        if (needLeads || needDemandas) {
+          const { data } = await supabase.from("designer_data").select("key,value").in("key", ["dh_leads","dh_demandas"]);
+          if (data) {
+            data.forEach(row => {
+              if (row.key === "dh_leads" && needLeads && Array.isArray(row.value) && row.value.length > 0) {
+                localStorage.setItem("dh_leads", JSON.stringify(row.value));
+                setLeads(row.value);
+              }
+              if (row.key === "dh_demandas" && needDemandas && Array.isArray(row.value) && row.value.length > 0) {
+                localStorage.setItem("dh_demandas", JSON.stringify(row.value));
+                setDemandas(row.value);
+              }
+            });
+          }
+        }
+      } catch(e) { console.error("bootSync:", e); }
+    }
+    bootSync();
+  }, []);
+
+  // Sync solicitacoes on boot
+  useEffect(() => {
+    async function syncBoot() {
+      try {
+        const cur = JSON.parse(localStorage.getItem("dh_demandas") || "[]");
+        const kanbanMap = JSON.parse(localStorage.getItem("dh_solic_kanban") || "{}");
+        for (const d of cur) {
+          if (d.solicitacao_id) {
+            supabase.from("solicitacoes").update({ status: d.status }).eq("id", Number(d.solicitacao_id));
+          }
+        }
+        const { data: solics } = await supabase.from("solicitacoes").select("*");
+        if (!solics) return;
+        const solicIdsExistentes = new Set(cur.filter(d=>d.solicitacao_id).map(d=>String(d.solicitacao_id)));
+        const novas = solics
+          .filter(s => !solicIdsExistentes.has(String(s.id)) && s.status !== "pendente")
+          .map(s => ({
+            id: Date.now() + Math.floor(Math.random()*10000),
+            titulo: s.tipo || "Solicitação",
+            descricao: s.descricao || "",
+            prazo: s.prazo || "",
+            valor: 0,
+            status: s.status,
+            cliente_id: Number(s.cliente_id) || null,
+            tag: s.tipo || "Solicitação",
+            solicitacao_id: s.id,
+            data_criacao: (s.created_at||"").split("T")[0],
+          }));
+        if (novas.length > 0) {
+          novas.forEach(d => { kanbanMap[String(d.solicitacao_id)] = d.id; });
+          localStorage.setItem("dh_solic_kanban", JSON.stringify(kanbanMap));
+          setDemandas(prev => {
+            const p = Array.isArray(prev) ? prev : [];
+            return [...p, ...novas];
+          });
+        }
+      } catch(e) { console.error("syncBoot:", e); }
+    }
+    syncBoot();
+  }, []);
+
+  // Badge / notifications for solicitacoes
+  const [solicPendentes, setSolicPendentes] = useState(0);
+  const [solicVistas, setSolicVistas] = useLocalStorage("dh_solic_vistas", 0);
+  const [notifToast, setNotifToast] = useState(null);
+  const prevSolicCount = useRef(solicVistas);
+
+  function tocarSom() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+    } catch {}
+  }
+
+  async function pedirPermissaoPush() {
+    if ("Notification" in window && Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
+  }
+  function notificarBrowser(qtd) {
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("FluxioHUB — Nova solicitação!", {
+        body: `${qtd} nova${qtd>1?"s":""} solicitação${qtd>1?"ões":""}`,
+        icon: "/favicon.ico",
+      });
+    }
+  }
+
+  useEffect(() => {
+    pedirPermissaoPush();
+    async function checar() {
+      try {
+        const { count } = await supabase.from("solicitacoes").select("*", { count:"exact", head:true }).eq("status","pendente");
+        const total = count || 0;
+        setSolicPendentes(total);
+        if (total > prevSolicCount.current) {
+          const novas = total - prevSolicCount.current;
+          tocarSom();
+          notificarBrowser(novas);
+          setNotifToast(`${novas} nova${novas>1?"s":""} solicitação${novas>1?"ões":""}!`);
+          setTimeout(() => setNotifToast(null), 5000);
+        }
+        prevSolicCount.current = total;
+      } catch {}
+    }
+    checar();
+    const interval = setInterval(checar, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (view === "portal") {
+      setSolicVistas(solicPendentes);
+      prevSolicCount.current = solicPendentes;
+    }
+  }, [view, solicPendentes]);
+
+  const badgeSolic = Math.max(0, solicPendentes - solicVistas);
+
+  useEffect(() => { document.body.style.background=THEMES[theme].bg; }, [theme]);
+  useEffect(() => { localStorage.setItem("dh_view", view); }, [view]);
 
   const timer = useTimer((date, secs) => {
     setTimerHistory(h => {
-      const idx = h.findIndex(x => x.date === date);
-      if (idx >= 0) {
-        const copy = [...h];
-        copy[idx] = { ...copy[idx], seconds: copy[idx].seconds + secs };
-        return copy;
-      }
-      return [...h, { date, seconds: secs }];
+      const idx = h.findIndex(x=>x.date===date);
+      if (idx>=0) return h.map((x,i)=>i===idx?{...x,seconds:x.seconds+secs}:x);
+      return [...h,{date,seconds:secs}];
     });
   });
-  
-  C = THEMES[theme] || THEMES.dark; // Atualiza a cor global baseado no tema
 
-  // Rotas públicas via hash ou search params
-  const isFormPedido = window.location.hash.startsWith("#pedido/");
-  if (isFormPedido) return <FormularioPedido setDemandas={setDemandas} setTasks={setTasks} />;
+  const nav = [
+    { id:"dashboard",  label:"Dashboard",        icon:"dashboard",  sec:"principal" },
+    { id:"prospeccao", label:"Prospecção 🎯",     icon:"leads",      sec:"gestao"    },
+    { id:"leads",      label:"CRM · Contatos",    icon:"leads",      sec:"gestao"    },
+    { id:"clientes",   label:"Clientes Ativos",   icon:"star",       sec:"gestao"    },
+    { id:"kanban",     label:"Kanban",            icon:"kanban",     sec:"gestao"    },
+    { id:"agenda",     label:"Agenda",            icon:"agenda",     sec:"trabalho"  },
+    { id:"timer",      label:"Horas",             icon:"timer",      sec:"trabalho"  },
+    { id:"finance",    label:"Financeiro",        icon:"finance",    sec:"trabalho"  },
+    { id:"portfolio",  label:"Portfólio",         icon:"portfolio",  sec:"criativo"  },
+    { id:"notes",      label:"Notas",             icon:"note",       sec:"criativo"  },
+    { id:"relatorio",  label:"Relatório",         icon:"bar",        sec:"criativo"  },
+    { id:"formulario", label:"Links do Cliente",  icon:"note",       sec:"ferramentas"},
+    { id:"portal",     label:"Solicitações",      icon:"user",       sec:"ferramentas"},
+  ];
 
-  const params = new URLSearchParams(window.location.search);
-  if (params.has("solicitar")) return <SolicitarPage />;
-  if (params.has("pedido")) return <AprovarPage />;
+  const sections = { principal:"", gestao:"GESTÃO", trabalho:"TRABALHO", criativo:"CRIATIVO", ferramentas:"FERRAMENTAS" };
 
- return (
+  C = THEMES[theme];
+
+  if (!loggedIn) return <ErrorBoundary><LoginScreen onLogin={u=>{setLoggedIn(true);if(u)setUserName(u.charAt(0).toUpperCase()+u.slice(1));}} /></ErrorBoundary>;
+  if (focusMode) return <FocusMode timer={timer} onClose={()=>setFocusMode(false)}/>;
+
+  return (
     <ErrorBoundary>
-      <div style={{ display:"flex", height:"100vh", background:C.bg, color:C.text, fontFamily:"'DM Sans', sans-serif" }}>
-        
-        {/* Sidebar */}
-        <div style={{ width:80, background:C.surface, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", alignItems:"center", padding:"24px 0", zIndex:100 }}>
-          <div style={{ width:44, height:44, borderRadius:12, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:32, boxShadow:`0 8px 24px ${C.accentGlow}50` }}>
-            <span style={{ color:"#fff", fontWeight:900, fontSize:20, fontFamily:"'Syne',sans-serif" }}>F</span>
-          </div>
-          
-          <div style={{ display:"flex", flexDirection:"column", gap:16, flex:1 }}>
-            {[
-              { id:"dashboard", icon:"dashboard", label:"Dashboard" },
-              { id:"clientes", icon:"star", label:"Clientes Ativos" },
-              { id:"kanban", icon:"kanban", label:"Demandas" },
-              { id:"leads", icon:"leads", label:"CRM (Leads)" },
-              { id:"prospeccao", icon:"send", label:"Prospecção" },
-              { id:"agenda", icon:"agenda", label:"Agenda" },
-              { id:"finance", icon:"finance", label:"Financeiro" },
-              { id:"portfolio", icon:"portfolio", label:"Portfólio" },
-              { id:"notes", icon:"note", label:"Notas" }
-            ].map(item => (
-              <button key={item.id} onClick={() => setView(item.id)} title={item.label}
-                style={{ width:44, height:44, borderRadius:12, border:"none", background:view===item.id?`${C.accent}20`:"transparent", color:view===item.id?C.accent:C.muted, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s" }}
-                onMouseEnter={e => { if(view!==item.id) e.currentTarget.style.background=C.cardHover; }}
-                onMouseLeave={e => { if(view!==item.id) e.currentTarget.style.background="transparent"; }}>
-                <Ico n={item.icon} s={20}/>
-              </button>
-            ))}
-          </div>
+    <div style={{ display:"flex", height:"100vh", overflow:"hidden", background:C.bg, fontFamily:"'DM Sans',sans-serif", color:C.text }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+        * { box-sizing:border-box; }
+        @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:0.85} }
+        @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        ::-webkit-scrollbar { width:4px; height:4px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:#334155; border-radius:99px; }
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance:none; }
+        @media (max-width:700px) {
+          .sidebar-full { transform: ${sideOpen?"translateX(0)":"translateX(-100%)"}; position:fixed!important; z-index:100; }
+          .main-content { margin-left:0!important; }
+        }
+      `}</style>
 
-          <div style={{ display:"flex", flexDirection:"column", gap:16, marginTop:"auto" }}>
-            <button onClick={() => setSettingsOpen(true)} style={{ width:40, height:40, borderRadius:"50%", border:`2px solid ${C.border}`, background:userAvatar?`url(${userAvatar}) center/cover`:`linear-gradient(135deg,${C.accentGlow},${C.teal})`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, overflow:"hidden" }}>
-              {!userAvatar && (userName?.charAt(0)?.toUpperCase() || "U")}
+      {/* Sidebar */}
+      <div className="sidebar-full" style={{ width:sideOpen?220:0, minWidth:sideOpen?220:0, background:C.surface, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", transition:"all 0.25s", overflow:"hidden", flexShrink:0 }}>
+        <div style={{ padding:"20px 18px 14px", borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><span style={{ color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14 }}>F</span></div>
+            <div><div style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15 }}>FluxioHUB</div><div style={{ color:C.muted, fontSize:10 }}>v2.0</div></div>
+          </div>
+        </div>
+        <div style={{ flex:1, overflowY:"auto", padding:"12px 10px" }}>
+          {Object.entries(sections).map(([sec, label])=>{
+            const items = nav.filter(n=>n.sec===sec);
+            if (!items.length) return null;
+            return (
+              <div key={sec} style={{ marginBottom:6 }}>
+                {label&&<div style={{ color:C.muted, fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.14em", padding:"6px 8px 4px" }}>{label}</div>}
+                {items.map(n=>(
+                  <button key={n.id} onClick={()=>setView(n.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"9px 10px", borderRadius:10, border:"none", cursor:"pointer", background:view===n.id?`${C.accent}18`:"transparent", marginBottom:2, transition:"all 0.13s" }}
+                    onMouseEnter={e=>{if(view!==n.id)e.currentTarget.style.background=C.cardHover;}}
+                    onMouseLeave={e=>{if(view!==n.id)e.currentTarget.style.background="transparent";}}>
+                    <Ico n={n.icon} s={15} c={view===n.id?C.accent:C.muted}/>
+                    <span style={{ color:view===n.id?C.accent:C.muted, fontSize:13, fontWeight:view===n.id?700:500, whiteSpace:"nowrap" }}>{n.label}</span>
+                    {n.id==="agenda"&&tasks.filter(t=>t.date===new Date().toISOString().split("T")[0]&&!t.done).length>0&&(
+                      <div style={{ marginLeft:"auto", width:18, height:18, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, color:"#fff" }}>{tasks.filter(t=>t.date===new Date().toISOString().split("T")[0]&&!t.done).length}</div>
+                    )}
+                    {n.id==="portal"&&badgeSolic>0&&(
+                      <div style={{ marginLeft:"auto", minWidth:18, height:18, borderRadius:9, background:C.red, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, color:"#fff", padding:"0 5px", animation:"pulse 1.5s infinite" }}>{badgeSolic}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ padding:"12px 10px", borderTop:`1px solid ${C.border}` }}>
+          <div onClick={()=>setSettingsOpen(true)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 10px", borderRadius:10, cursor:"pointer" }}
+            onMouseEnter={e=>e.currentTarget.style.background=C.cardHover}
+            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <div style={{ width:32, height:32, borderRadius:9, background:userAvatar?`url(${userAvatar}) center/cover`:`linear-gradient(135deg,${C.accentGlow}50,${C.teal}50)`, display:"flex", alignItems:"center", justifyContent:"center", color:C.teal, fontWeight:800, fontSize:14, overflow:"hidden", flexShrink:0 }}>{!userAvatar&&userName.charAt(0).toUpperCase()}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ color:C.text, fontSize:12, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{userName}</div>
+              <div style={{ color:C.muted, fontSize:10 }}>{userRole}</div>
+            </div>
+          </div>
+          <button onClick={()=>setLoggedIn(false)} style={{ width:"100%", marginTop:6, background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"7px", color:C.muted, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>Sair</button>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="main-content" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+        <div style={{ height:54, display:"flex", alignItems:"center", padding:"0 24px", borderBottom:`1px solid ${C.border}`, gap:14, flexShrink:0 }}>
+          <button onClick={()=>setSideOpen(s=>!s)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="menu" s={20}/></button>
+          <span style={{ color:C.muted, fontSize:13 }}>{nav.find(n=>n.id===view)?.label||""}</span>
+          {notifToast&&(
+            <div onClick={()=>{setView("portal");setNotifToast(null);}} style={{ position:"fixed", bottom:24, right:24, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:14, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", cursor:"pointer", zIndex:9999, animation:"slideUp 0.3s ease" }}>
+              <span style={{ fontSize:22 }}>🔔</span>
+              <div>
+                <div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>{notifToast}</div>
+                <div style={{ color:"rgba(255,255,255,0.7)", fontSize:11 }}>Clique para ver</div>
+              </div>
+              <button onClick={e=>{e.stopPropagation();setNotifToast(null);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:6, width:22, height:22, color:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+            </div>
+          )}
+          <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={timer.toggle} style={{ display:"flex", alignItems:"center", gap:7, background:timer.running?`${C.teal}18`:C.card, border:`1px solid ${timer.running?C.teal:C.border}`, borderRadius:9, padding:"6px 13px", cursor:"pointer" }}>
+              <div style={{ width:7, height:7, borderRadius:"50%", background:timer.running?C.teal:C.muted, boxShadow:timer.running?`0 0 6px ${C.teal}`:""}}/>
+              <span style={{ color:timer.running?C.teal:C.muted, fontFamily:"monospace", fontSize:12, fontWeight:700 }}>{timer.fmt(timer.seconds)}</span>
             </button>
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="main-content" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
-          <div style={{ height:54, display:"flex", alignItems:"center", padding:"0 24px", borderBottom:`1px solid ${C.border}`, gap:14, flexShrink:0 }}>
-            
-            {/* Opcional: só chama setSideOpen se existir */}
-            <button onClick={()=>typeof setSideOpen === 'function' && setSideOpen(s=>!s)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><Ico n="menu" s={20}/></button>
-            <span style={{ color:C.muted, fontSize:13 }}>{(typeof nav !== 'undefined' ? nav : []).find(n=>n.id===view)?.label||""}</span>
-            
-            {typeof notifToast !== 'undefined' && notifToast && (
-              <div onClick={()=>{setView("portal");if(typeof setNotifToast === 'function') setNotifToast(null);}} style={{ position:"fixed", bottom:24, right:24, background:`linear-gradient(135deg,${C.accentGlow},${C.accent})`, borderRadius:14, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", cursor:"pointer", zIndex:9999, animation:"slideUp 0.3s ease" }}>
-                <span style={{ fontSize:22 }}>🔔</span>
-                <div>
-                  <div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>{notifToast}</div>
-                  <div style={{ color:"rgba(255,255,255,0.7)", fontSize:11 }}>Clique para ver</div>
-                </div>
-                <button onClick={e=>{e.stopPropagation();if(typeof setNotifToast === 'function') setNotifToast(null);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", borderRadius:6, width:22, height:22, color:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-              </div>
-            )}
-            
-            <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12 }}>
-              <button onClick={timer.toggle} style={{ display:"flex", alignItems:"center", gap:7, background:timer.running?`${C.teal}18`:C.card, border:`1px solid ${timer.running?C.teal:C.border}`, borderRadius:9, padding:"6px 13px", cursor:"pointer" }}>
-                <div style={{ width:7, height:7, borderRadius:"50%", background:timer.running?C.teal:C.muted, boxShadow:timer.running?`0 0 6px ${C.teal}`:""}}/>
-                <span style={{ color:timer.running?C.teal:C.muted, fontFamily:"monospace", fontSize:12, fontWeight:700 }}>{timer.fmt(timer.seconds)}</span>
-              </button>
-            </div>
-          </div>
-
-          <div style={{ flex:1, overflowY:"auto" }}>
-            {view==="dashboard" && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={typeof setFocusMode !== 'undefined' ? setFocusMode : undefined}/>}
-            {view==="prospeccao" && <Prospeccao/>}
-            {view==="leads" && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
-            
-            {/* CORREÇÃO DO FILTER APLICADA AQUI ABAIXO */}
-            {view==="clientes" && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas} portfolio={portfolio} tasks={tasks} setTasks={setTasks} />}
-            
-            {view==="kanban" && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
-            {view==="agenda" && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
-            {view==="timer" && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
-            {view==="finance" && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory} despesas={typeof despesas !== 'undefined' ? despesas : []} setDespesas={typeof setDespesas !== 'undefined' ? setDespesas : undefined}/>}
-            {view==="portfolio" && <Portfolio items={portfolio} setItems={setPortfolio}/>}
-            {view==="notes" && <Notes notes={notes} setNotes={setNotes}/>}
-            {view==="relatorio" && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
-            {view==="formulario" && <FormularioPedido leads={leads}/>}
-            {view==="portal" && typeof PortalCliente !== 'undefined' && <PortalCliente leads={leads} setDemandas={setDemandas}/>}
-          </div>
+        <div style={{ flex:1, overflowY:"auto" }}>
+          {view==="dashboard"   && <Dashboard leads={leads} tasks={tasks} timer={timer} timerHistory={timerHistory} setView={setView} demandas={demandas} setFocusMode={setFocusMode}/>}
+          {view==="prospeccao"  && <Prospeccao/>}
+          {view==="leads"       && <Leads leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
+          {view==="clientes"    && <ClientesFixos leads={leads} setLeads={setLeads} demandas={demandas} setDemandas={setDemandas}/>}
+          {view==="kanban"      && <Kanban demandas={demandas} setDemandas={setDemandas} leads={leads}/>}
+          {view==="agenda"      && <Agenda tasks={tasks} setTasks={setTasks} demandas={demandas} setDemandas={setDemandas}/>}
+          {view==="timer"       && <TimerHistoryView timerHistory={timerHistory} timer={timer}/>}
+          {view==="finance"     && <Finance leads={leads} demandas={demandas} timerHistory={timerHistory} despesas={despesas} setDespesas={setDespesas}/>}
+          {view==="portfolio"   && <Portfolio items={portfolio} setItems={setPortfolio}/>}
+          {view==="notes"       && <Notes notes={notes} setNotes={setNotes}/>}
+          {view==="relatorio"   && <Relatorio leads={leads} demandas={demandas} timerHistory={timerHistory} tasks={tasks} timer={timer}/>}
+          {view==="formulario"  && <FormularioPedido leads={leads}/>}
+          {view==="portal"      && <PortalCliente leads={leads} setDemandas={setDemandas}/>}
         </div>
-
-        <SettingsModal open={settingsOpen} onClose={()=>setSettingsOpen(false)} theme={theme} setTheme={setTheme} userName={userName} setUserName={setUserName} userRole={userRole} setUserRole={setUserRole} userAvatar={userAvatar} setUserAvatar={setUserAvatar}/>
       </div>
+
+      <SettingsModal open={settingsOpen} onClose={()=>setSettingsOpen(false)} theme={theme} setTheme={setTheme} userName={userName} setUserName={setUserName} userRole={userRole} setUserRole={setUserRole} userAvatar={userAvatar} setUserAvatar={setUserAvatar}/>
+    </div>
     </ErrorBoundary>
   );
 }
