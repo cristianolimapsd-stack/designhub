@@ -2422,7 +2422,7 @@ useEffect(() => {
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ textAlign:"center", color:C.muted }}>
         <div style={{ fontSize:40, marginBottom:12 }}>❌</div>
-        <div style={{ fontSize:16, color:C.text, marginBottom:8 }}>Link inválido ou cliente não encontrado.</div>
+        <div style={{ fontSize:16, color:C.text, marginBottom:8 }}>TESTE 123</div>
         <div style={{ fontSize:13 }}>Verifique o link com seu designer.</div>
       </div>
     </div>
