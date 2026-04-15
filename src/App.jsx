@@ -3489,6 +3489,7 @@ function PortalCliente({ leads, setDemandas }) {
 function LinksDoCliente({ leads }) {
   const clientes = (leads || []).filter(l => l.categoria === "cliente_fixo");
   const [selCli, setSelCli] = useState("");
+  const [copied, setCopied] = useState("");
 
   const sel = clientes.find(c => String(c.id) === String(selCli));
   const nome = sel?.name || "Cliente";
@@ -3501,13 +3502,56 @@ function LinksDoCliente({ leads }) {
     ? `${window.location.origin}/?portal=${encodeURIComponent(sel.id)}&nome=${encodeURIComponent(nome)}`
     : "";
 
+  const copyToClipboard = async (text, key) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(""), 1600);
+    } catch {
+      alert("Não foi possível copiar. Tente novamente.");
+    }
+  };
+
+  const card = (title, desc, link, key) => (
+    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:16 }}>
+      <div style={{ display:"flex", alignItems:"start", justifyContent:"space-between", gap:12, marginBottom:8 }}>
+        <div>
+          <div style={{ color:C.accent, fontSize:13, fontWeight:700 }}>{title}</div>
+          <div style={{ color:C.muted, fontSize:12, marginTop:3 }}>{desc}</div>
+        </div>
+        <button
+          onClick={() => copyToClipboard(link, key)}
+          style={{
+            background: copied === key ? `${C.green}20` : `${C.accent}15`,
+            border: `1px solid ${copied === key ? `${C.green}55` : `${C.accent}35`}`,
+            color: copied === key ? C.green : C.accent,
+            borderRadius:10,
+            padding:"7px 10px",
+            fontSize:12,
+            fontWeight:700,
+            cursor:"pointer",
+            fontFamily:"inherit",
+            whiteSpace:"nowrap"
+          }}
+        >
+          {copied === key ? "Copiado!" : "📋 Copiar"}
+        </button>
+      </div>
+
+      <div style={{ color:C.text, fontSize:12, wordBreak:"break-all", lineHeight:1.55 }}>
+        {link || "Selecione um cliente para gerar o link"}
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{ padding:"28px 32px", maxWidth:820 }}>
+    <div style={{ padding:"28px 32px", maxWidth:860 }}>
       <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>
         Links do Cliente
       </h1>
       <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>
-        Selecione um cliente ativo para gerar os links.
+        Gere e copie com um clique os links de solicitação e portal.
       </p>
 
       <Field
@@ -3517,22 +3561,24 @@ function LinksDoCliente({ leads }) {
         options={[{ value:"", label:"Selecionar cliente..." }, ...clientes.map(c => ({ value:String(c.id), label:c.name }))]}
       />
 
-      {sel && (
-        <div style={{ marginTop:16, display:"grid", gap:12 }}>
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:14 }}>
-            <div style={{ color:C.accent, fontSize:12, fontWeight:700, marginBottom:6 }}>Link para Solicitação</div>
-            <div style={{ color:C.text, fontSize:12, wordBreak:"break-all" }}>{linkSolicitacao}</div>
-          </div>
-
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:14 }}>
-            <div style={{ color:C.accent, fontSize:12, fontWeight:700, marginBottom:6 }}>Link do Portal do Cliente</div>
-            <div style={{ color:C.text, fontSize:12, wordBreak:"break-all" }}>{linkPortal}</div>
-          </div>
-        </div>
-      )}
+      <div style={{ display:"grid", gap:12, marginTop:16 }}>
+        {card(
+          "Link para Solicitação",
+          "Cliente envia nova demanda direto no sistema.",
+          linkSolicitacao,
+          "solic"
+        )}
+        {card(
+          "Link do Portal do Cliente",
+          "Cliente acompanha status e respostas do designer.",
+          linkPortal,
+          "portal"
+        )}
+      </div>
     </div>
   );
 }
+
 
 function LoginScreen({ onLogin }) {
   const [user, setUser] = useState(""); 
