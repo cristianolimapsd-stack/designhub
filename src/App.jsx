@@ -2352,7 +2352,6 @@ const leadsList = Array.isArray(data?.value) ? data.value : [];
 const found = leadsList.find(l => String(l.id) === String(clienteId));
 setCliente(found || null);
           // aceita qualquer lead com esse ID (categoria pode não estar migrada ainda)
-          setCliente(data || null);
         } else {
           // Supabase não configurado
           setCliente(null);
@@ -3548,10 +3547,10 @@ class ErrorBoundary extends React.Component {
 
 export default function App() {
   const params = new URLSearchParams(window.location.search);
+  if (window.location.hash.startsWith("#pedido/")) return <FormularioPedido />;
   if (params.get("pedido"))    return <AprovarPage/>;
   if (params.get("solicitar")) return <SolicitarPage/>;
   if (params.get("portal"))    return <PortalPublicoPage/>;
-
   const [loggedIn, setLoggedIn] = useLocalStorage("dh_loggedIn", false);
   const [theme, setTheme] = useLocalStorage("dh_theme", "dark");
   const [userName, setUserName] = useLocalStorage("dh_userName", "Designer");
