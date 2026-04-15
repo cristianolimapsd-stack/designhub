@@ -1790,9 +1790,23 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
     setModal(false);
   };
   const del = id => {
-    setLeads(ls => ls.filter(l => l.id !== id));
-    setSelId(clientes.find(c => c.id !== id)?.id || null);
-  };
+  if (!window.confirm("Excluir este cliente e todas as demandas vinculadas?")) return;
+
+  setLeads(ls => ls.filter(l => l.id !== id));
+
+  // remove demandas órfãs desse cliente
+  setDemandas(ds => ds.filter(d => String(d.cliente_id) !== String(id)));
+
+  // remove tarefas relacionadas (opcional: pelo título que inclui nome do cliente)
+  if (setTasks && sel) {
+    const nome = (sel.name || "").trim();
+    setTasks(ts =>
+      ts.filter(t => !nome || !String(t.title || "").includes(`· ${nome}`))
+    );
+  }
+
+  setSelId(clientes.find(c => c.id !== id)?.id || null);
+};
   const updateField = (id, field, val) => {
     setLeads(ls => ls.map(l => l.id===id ? {...l, [field]:val} : l));
   };
@@ -2738,6 +2752,43 @@ function Kanban({ demandas, setDemandas, leads }) {
                   </button>
                 </div>
               </div>
+
+              {/* Ações */}
+  <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
+  <button
+    onClick={async () => {
+      if (!window.confirm("Tem certeza que deseja excluir esta demanda?")) return;
+
+      setDemandas(ds => ds.filter(x => x.id !== d.id));
+
+      if (d.solicitacao_id) {
+        try {
+          await supabase.from("solicitacoes").delete().eq("id", Number(d.solicitacao_id));
+          window.dispatchEvent(new CustomEvent("solic_changed"));
+        } catch {}
+      }
+
+      setModalCard(null);
+    }}
+    style={{
+      background:`${C.red}15`,
+      border:`1px solid ${C.red}35`,
+      borderRadius:9,
+      padding:"8px 12px",
+      color:C.red,
+      fontSize:12,
+      fontWeight:700,
+      cursor:"pointer",
+      display:"flex",
+      alignItems:"center",
+      gap:6
+    }}
+  >
+    <Ico n="trash" s={12} c={C.red} />
+    Excluir demanda
+  </button>
+</div>
+
 
               {/* Mover para */}
               <div>
