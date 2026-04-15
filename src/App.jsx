@@ -2490,25 +2490,33 @@ function Kanban({ demandas, setDemandas, leads }) {
     ? demandas
     : demandas.filter(d => String(d.cliente_id) === String(filterCli));
 
-  const mover = (id, novoStatus) => {
-    setDemandas(ds => ds.map(d => d.id === id ? { ...d, status: novoStatus } : d));
-  };
+const mover = async (id, novoStatus) => {
+  let demandaMovida = null;
 
-  // Drag handlers
-  const onDragStart = (e, id) => {
-    setDragId(id);
-    e.dataTransfer.effectAllowed = "move";
-  };
-  const onDragOver = (e, col) => {
-    e.preventDefault();
-    setDragOver(col);
-  };
-  const onDrop = (e, col) => {
-    e.preventDefault();
-    if (dragId) mover(dragId, col);
-    setDragId(null);
-    setDragOver(null);
-  };
+  setDemandas(ds =>
+    ds.map(d => {
+      if (d.id === id) {
+        demandaMovida = { ...d, status: novoStatus };
+        return demandaMovida;
+      }
+      return d;
+    })
+  );
+
+  if (demandaMovida?.solicitacao_id) {
+    try {
+      await supabase
+        .from("solicitacoes")
+        .update({ status: novoStatus })
+        .eq("id", Number(demandaMovida.solicitacao_id));
+
+      window.dispatchEvent(new CustomEvent("solic_changed"));
+    } catch (e) {
+      console.error("Erro ao sincronizar status da solicitação:", e);
+    }
+  }
+};
+
   const onDragEnd = () => { setDragId(null); setDragOver(null); };
 
   const getCliente = (clienteId) => leads.find(l => l.id === clienteId || l.id === parseInt(clienteId));
@@ -2799,7 +2807,7 @@ function Kanban({ demandas, setDemandas, leads }) {
                   {KANBAN_COLS.filter(k => k !== d.status).map(k => {
                     const v = STATUS_DEMANDA[k];
                     return (
-                      <button key={k} onClick={() => { setDemandas(ds => ds.map(x => x.id===d.id ? {...x,status:k} : x)); setModalCard({...d,status:k}); }}
+                      <button key={k} onClick={async () => { await mover(d.id, k); setModalCard({...d, status:k}); }}
                         style={{ background:`${v.color}15`, border:`1px solid ${v.color}40`, borderRadius:9, padding:"8px 14px", color:v.color, fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
                         {v.icon} {v.label}
                       </button>
