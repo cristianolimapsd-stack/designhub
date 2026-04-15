@@ -2342,15 +2342,27 @@ function FormularioPedido({ setDemandas, setTasks }) {
     async function buscar() {
       try {
         if (dbReady) {
-         const { data } = await supabase
+        const { data, error } = await supabase
   .from("designer_data")
-  .select("value")
+  .select("value, updated_at")
   .eq("key", "dh_leads")
-  .single();
+  .order("updated_at", { ascending: false })
+  .limit(1);
 
-const leadsList = Array.isArray(data?.value) ? data.value : [];
-const found = leadsList.find(l => String(l.id) === String(clienteId));
+if (error) throw error;
+
+const rawValue = data?.[0]?.value;
+let leadsList = [];
+
+if (Array.isArray(rawValue)) {
+  leadsList = rawValue;
+} else if (typeof rawValue === "string") {
+  try { leadsList = JSON.parse(rawValue); } catch {}
+}
+
+const found = leadsList.find(l => String(l?.id) === String(clienteId));
 setCliente(found || null);
+
           // aceita qualquer lead com esse ID (categoria pode não estar migrada ainda)
         } else {
           // Supabase não configurado
