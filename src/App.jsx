@@ -1871,7 +1871,10 @@ function ClientesFixos({ leads, setLeads, portfolio, demandas, setDemandas, task
 
   // Link público do formulário de pedidos
   const slug = sel ? sel.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"") : "";
-  const linkPedido = sel ? `${window.location.origin}/#pedido/${slug}/${sel.id}` : "";
+  const linkPedido = sel
+  ? `${window.location.origin}/#pedido/${encodeURIComponent(slug)}/${encodeURIComponent(sel.id)}?nome=${encodeURIComponent(sel.name || "Cliente")}`
+  : "";
+
 
   const NotesSave = ({ clienteId, value }) => {
     const [txt, setTxt] = useState(value||"");
