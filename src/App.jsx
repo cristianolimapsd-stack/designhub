@@ -558,8 +558,10 @@ function SettingsModal({ open, onClose, theme, setTheme, userName, setUserName, 
 
 function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) {
   const today = new Date().toISOString().split("T")[0];
-  const totalV = leads.filter(l=>l.status==="fechado").reduce((a,b)=>a+b.value,0);
-  const pipeline = leads.filter(l=>!["fechado","perdido"].includes(l.status)).reduce((a,b)=>a+b.value,0);
+  const demandasFinalizadas = demandas.filter(d => d.status === "finalizado");
+  const totalV = demandasFinalizadas.reduce((a, d) => a + (parseFloat(d.valor) || 0), 0);
+  const demandasPipeline = demandas.filter(d => d.status !== "finalizado");
+  const pipeline = demandasPipeline.reduce((a, d) => a + (parseFloat(d.valor) || 0), 0);
   const todT = tasks.filter(t=>t.date===today);
   const pct = Math.min(100, Math.round((timer.seconds/timer.goal)*100));
 
@@ -602,8 +604,8 @@ function Dashboard({ leads, tasks, timer, timerHistory, setView, demandas=[] }) 
       {/* Metrics */}
       <div style={{ display:"flex", gap:14, marginBottom:22, flexWrap:"wrap" }}>
         {[
-          { label:"Receita fechada", value:`R$ ${totalV.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>l.status==="fechado").length} projetos`, accent:C.green, onClick:null },
-          { label:"Em pipeline",     value:`R$ ${pipeline.toLocaleString("pt-BR")}`, sub:`${leads.filter(l=>!["fechado","perdido"].includes(l.status)).length} ativos`, accent:C.accent, onClick:null },
+          { label:"Receita fechada", value:`R$ ${totalV.toLocaleString("pt-BR")}`, sub:`${demandasFinalizadas.length} jobs`, accent:C.green, onClick:null },
+          { label:"Em pipeline",     value:`R$ ${pipeline.toLocaleString("pt-BR")}`, sub:`${demandasPipeline.length} em andamento`, accent:C.accent, onClick:null },
           { label:"Total de leads",  value:leads.length, sub:`${leads.filter(l=>l.status==="novo").length} novos`, accent:C.teal, onClick:null },
           { label:"Tarefas hoje",    value:`${todT.filter(t=>t.done).length}/${todT.length}`, sub:`${todT.filter(t=>!t.done).length} pendentes`, accent:C.orange, onClick:null },
         ].map(m=>(
