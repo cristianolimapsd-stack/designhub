@@ -3493,6 +3493,7 @@ function LinksDoCliente({ leads }) {
 
   const sel = clientes.find(c => String(c.id) === String(selCli));
   const nome = sel?.name || "Cliente";
+  const iniciais = nome.split(" ").map(s => s[0]).join("").slice(0, 2).toUpperCase();
 
   const linkSolicitacao = sel
     ? `${window.location.origin}/?solicitar=${encodeURIComponent(sel.id)}&nome=${encodeURIComponent(nome)}`
@@ -3507,77 +3508,120 @@ function LinksDoCliente({ leads }) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(key);
-      setTimeout(() => setCopied(""), 1600);
+      setTimeout(() => setCopied(""), 1400);
     } catch {
-      alert("Não foi possível copiar. Tente novamente.");
+      alert("Não foi possível copiar o link.");
     }
   };
 
-  const card = (title, desc, link, key) => (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:16 }}>
-      <div style={{ display:"flex", alignItems:"start", justifyContent:"space-between", gap:12, marginBottom:8 }}>
+  const ActionCard = ({ title, subtitle, link, keyName }) => (
+    <div
+      style={{
+        background:`linear-gradient(180deg, ${C.card} 0%, ${C.surface} 100%)`,
+        border:`1px solid ${C.border}`,
+        borderRadius:16,
+        padding:16
+      }}
+    >
+      <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start" }}>
         <div>
-          <div style={{ color:C.accent, fontSize:13, fontWeight:700 }}>{title}</div>
-          <div style={{ color:C.muted, fontSize:12, marginTop:3 }}>{desc}</div>
+          <div style={{ color:C.text, fontSize:15, fontWeight:700 }}>{title}</div>
+          <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{subtitle}</div>
         </div>
+
         <button
-          onClick={() => copyToClipboard(link, key)}
+          onClick={() => copyToClipboard(link, keyName)}
+          disabled={!link}
           style={{
-            background: copied === key ? `${C.green}20` : `${C.accent}15`,
-            border: `1px solid ${copied === key ? `${C.green}55` : `${C.accent}35`}`,
-            color: copied === key ? C.green : C.accent,
+            background: copied === keyName ? `${C.green}18` : `${C.accent}14`,
+            border:`1px solid ${copied === keyName ? `${C.green}55` : `${C.accent}35`}`,
+            color: copied === keyName ? C.green : C.accent,
             borderRadius:10,
-            padding:"7px 10px",
+            padding:"8px 12px",
             fontSize:12,
             fontWeight:700,
-            cursor:"pointer",
+            cursor: link ? "pointer" : "not-allowed",
+            opacity: link ? 1 : 0.55,
             fontFamily:"inherit",
             whiteSpace:"nowrap"
           }}
         >
-          {copied === key ? "Copiado!" : "📋 Copiar"}
+          {copied === keyName ? "✓ Copiado" : "📋 Copiar"}
         </button>
       </div>
 
-      <div style={{ color:C.text, fontSize:12, wordBreak:"break-all", lineHeight:1.55 }}>
+      <div
+        style={{
+          marginTop:12,
+          background:C.bg,
+          border:`1px solid ${C.border}`,
+          borderRadius:10,
+          padding:"10px 12px",
+          color: link ? C.text : C.muted,
+          fontSize:12,
+          lineHeight:1.55,
+          wordBreak:"break-all"
+        }}
+      >
         {link || "Selecione um cliente para gerar o link"}
       </div>
     </div>
   );
 
   return (
-    <div style={{ padding:"28px 32px", maxWidth:860 }}>
-      <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, margin:"0 0 6px" }}>
-        Links do Cliente
-      </h1>
-      <p style={{ color:C.muted, fontSize:13, marginBottom:22 }}>
-        Gere e copie com um clique os links de solicitação e portal.
+    <div style={{ padding:"28px 32px", maxWidth:920 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:8 }}>
+        <h1 style={{ color:C.text, fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, margin:0 }}>
+          Links do Cliente
+        </h1>
+        <span style={{ background:`${C.accent}12`, border:`1px solid ${C.accent}30`, color:C.accent, borderRadius:999, padding:"6px 10px", fontSize:11, fontWeight:700 }}>
+          Compartilhamento rápido
+        </span>
+      </div>
+
+      <p style={{ color:C.muted, fontSize:13, marginBottom:18 }}>
+        Gere links seguros para solicitação e acompanhamento. Copie com 1 clique.
       </p>
 
-      <Field
-        label="Cliente"
-        value={selCli}
-        onChange={setSelCli}
-        options={[{ value:"", label:"Selecionar cliente..." }, ...clientes.map(c => ({ value:String(c.id), label:c.name }))]}
-      />
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
+        <Field
+          label="Cliente"
+          value={selCli}
+          onChange={setSelCli}
+          options={[{ value:"", label:"Selecionar cliente..." }, ...clientes.map(c => ({ value:String(c.id), label:c.name }))]}
+        />
 
-      <div style={{ display:"grid", gap:12, marginTop:16 }}>
-        {card(
-          "Link para Solicitação",
-          "Cliente envia nova demanda direto no sistema.",
-          linkSolicitacao,
-          "solic"
+        {sel && (
+          <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg,${C.accentGlow}50,${C.teal}50)`, display:"flex", alignItems:"center", justifyContent:"center", color:C.text, fontWeight:800, fontSize:12 }}>
+              {iniciais}
+            </div>
+            <div>
+              <div style={{ color:C.text, fontSize:13, fontWeight:700 }}>{sel.name}</div>
+              <div style={{ color:C.muted, fontSize:11 }}>{sel.company || "Cliente ativo"}</div>
+            </div>
+          </div>
         )}
-        {card(
-          "Link do Portal do Cliente",
-          "Cliente acompanha status e respostas do designer.",
-          linkPortal,
-          "portal"
-        )}
+      </div>
+
+      <div style={{ display:"grid", gap:12 }}>
+        <ActionCard
+          title="Solicitação de Demanda"
+          subtitle="Cliente abre novos pedidos para seu time."
+          link={linkSolicitacao}
+          keyName="solic"
+        />
+        <ActionCard
+          title="Portal do Cliente"
+          subtitle="Cliente acompanha status, respostas e entregas."
+          link={linkPortal}
+          keyName="portal"
+        />
       </div>
     </div>
   );
 }
+
 
 
 function LoginScreen({ onLogin }) {
